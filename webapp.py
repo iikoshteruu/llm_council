@@ -16,7 +16,7 @@ from flask import Flask, request, send_from_directory, jsonify, send_file
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 COUNCIL_SCRIPT = os.path.join(BASE_DIR, "council_basic.py")
-COUNCIL_TIMEOUT = int(os.getenv("COUNCIL_TIMEOUT", "300"))
+COUNCIL_TIMEOUT = int(os.getenv("COUNCIL_TIMEOUT", "600"))
 COUNCIL_WEB_API_KEY = os.getenv("COUNCIL_WEB_API_KEY", "").strip()
 COUNCIL_ARTIFACTS_DIR = os.getenv("COUNCIL_ARTIFACTS_DIR", os.path.join(BASE_DIR, "results", "current"))
 PROMPT_DIR = os.path.join(BASE_DIR, "prompts")
