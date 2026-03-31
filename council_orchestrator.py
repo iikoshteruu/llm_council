@@ -31,6 +31,7 @@ def run(cmd, env=None):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--file", required=True, help="JSONL prompt file")
+    parser.add_argument("--mode", default="sistm_stress", help="Council mode")
     parser.add_argument("--domain", help="Explicit run domain label")
     parser.add_argument("--artifacts-dir", default=os.path.join(BASE_DIR, "results", "current"))
     parser.add_argument("--aggregate-input", help="File or directory to aggregate; defaults to artifacts-dir")
@@ -55,6 +56,7 @@ def main():
         "python3", COUNCIL_SCRIPT,
         "--file", args.file,
         "--artifacts-dir", args.artifacts_dir,
+        "--mode", args.mode,
     ]
     if args.domain:
         council_cmd.extend(["--domain", args.domain])
@@ -73,6 +75,7 @@ def main():
     print(json.dumps({
         "run_id": data.get("run_id"),
         "code_hash": data.get("code_hash"),
+        "mode": data.get("mode"),
         "domain": data.get("domain"),
         "artifacts": data.get("artifacts"),
         "aggregate_output": args.aggregate_output,

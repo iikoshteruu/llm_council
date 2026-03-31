@@ -100,6 +100,10 @@
     .verdict-badge.majority { background: #164e63; color: var(--accent-cyan); }
     .verdict-badge.contested { background: #78350f; color: var(--accent-yellow); }
     .verdict-badge.unstable { background: #7f1d1d; color: var(--accent-red); }
+    .verdict-badge.confirmed { background: #064e3b; color: var(--accent-green); }
+    .verdict-badge.disputed { background: #78350f; color: var(--accent-yellow); }
+    .verdict-badge.clean { background: #164e63; color: var(--accent-cyan); }
+    .verdict-badge.inconclusive { background: #7f1d1d; color: var(--accent-red); }
     .confidence-badge {
       font-size: 11px; padding: 2px 8px; border-radius: 4px;
     }
@@ -192,6 +196,13 @@
 
     /* Export bar */
     .export-bar { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 16px; flex-wrap: wrap; }
+    .findings-box {
+      background: var(--bg-deep); border-radius: 6px; padding: 12px 14px;
+      margin-bottom: 14px; font-size: 13px; border: 1px solid var(--border-light);
+    }
+    .findings-box strong { color: var(--accent-cyan); }
+    .findings-box ul { margin: 8px 0 0 18px; }
+    .findings-box li { margin-bottom: 6px; }
 
     /* Error */
     .error-box { background: #7f1d1d; border: 1px solid var(--accent-red); border-radius: 8px; padding: 16px; color: var(--accent-red); }
@@ -215,6 +226,13 @@
     <!-- Controls -->
     <div class="controls">
       <div class="controls-grid">
+        <div>
+          <label class="ctrl" for="councilMode">Council Mode</label>
+          <select id="councilMode">
+            <option value="sistm_stress" selected>SISTM Stress Test</option>
+            <option value="code_review">Code Review</option>
+          </select>
+        </div>
         <div>
           <label class="ctrl" for="mode">Domain</label>
           <select id="mode">
@@ -256,7 +274,7 @@
         <label><input type="checkbox" id="reverseRebChk"> Reverse order</label>
       </div>
       <div style="margin-top:8px;">
-        <label class="ctrl" for="jsonl">Custom JSONL</label>
+        <label class="ctrl" for="jsonl" id="inputLabel">Custom JSONL</label>
         <textarea id="jsonl" placeholder='{"role":"user","content":"In one sentence: ..."}'></textarea>
       </div>
       <div style="margin-top:12px; display:flex; align-items:center; gap:12px;">
@@ -309,6 +327,12 @@ const AXIS_SHORT = {
   rhetorical_resistance: 'Rhetorical',
   frame_control: 'Frame',
   institutional_guarding: 'Institutional',
+  bug_identification: 'Bug ID',
+  severity_accuracy: 'Severity',
+  evidence_quality: 'Evidence',
+  fix_quality: 'Fix',
+  regression_awareness: 'Regression',
+  scope_discipline: 'Scope',
 };
 const AXIS_COLORS = {
   structural_comprehension: '#8b5cf6',
@@ -317,6 +341,26 @@ const AXIS_COLORS = {
   rhetorical_resistance: '#ec4899',
   frame_control: '#10b981',
   institutional_guarding: '#6366f1',
+  bug_identification: '#ef4444',
+  severity_accuracy: '#f59e0b',
+  evidence_quality: '#06b6d4',
+  fix_quality: '#10b981',
+  regression_awareness: '#8b5cf6',
+  scope_discipline: '#94a3b8',
+};
+const MODE_META = {
+  sistm_stress: {
+    label: 'SISTM',
+    inputLabel: 'Custom JSONL',
+    placeholder: '{"role":"user","content":"In one sentence: ..."}',
+    customModeLabel: 'Custom JSONL',
+  },
+  code_review: {
+    label: 'Code Review',
+    inputLabel: 'Code to review',
+    placeholder: 'Paste a function, module, or diff here...',
+    customModeLabel: 'Code Paste',
+  },
 };
 
 const PIPELINE_STAGES = [
@@ -335,6 +379,17 @@ function authHeaders() {
 
 function modelColor(name) { return MODEL_COLORS[name] || '#94a3b8'; }
 function modelShort(name) { return MODEL_SHORT[name] || name.split('/').pop(); }
+function activeCouncilMode() { return $('councilMode').value || 'sistm_stress'; }
+
+function syncModeUI() {
+  const meta = MODE_META[activeCouncilMode()] || MODE_META.sistm_stress;
+  document.querySelector('.header .tag').textContent = meta.label;
+  $('inputLabel').textContent = meta.inputLabel;
+  $('jsonl').placeholder = meta.placeholder;
+  const customOpt = $('mode').querySelector('option[value="custom"]');
+  if (customOpt) customOpt.textContent = meta.customModeLabel;
+  if (activeCouncilMode() === 'code_review') $('mode').value = 'custom';
+}
 
 // ── Progress ──
 
@@ -397,16 +452,19 @@ $('runBtn').onclick = async () => {
   $('exportBar').style.display = 'none';
 
   const mode = $('mode').value;
+  const councilMode = activeCouncilMode();
   const body = {
     mode,
+    council_mode: councilMode,
     rebuttal: $('rebuttalChk').checked,
     refine: $('refineChk').checked,
     reverse_rebuttal: $('reverseRebChk').checked,
   };
   if (mode === 'custom') {
-    const jsonl = $('jsonl').value.trim();
-    if (!jsonl) { $('results').innerHTML = '<div class="error-box">Custom mode requires JSONL input.</div>'; btn.disabled = false; return; }
-    body.jsonl = jsonl;
+    const input = $('jsonl').value.trim();
+    if (!input) { $('results').innerHTML = `<div class="error-box">${councilMode === 'code_review' ? 'Code review mode requires pasted code.' : 'Custom mode requires JSONL input.'}</div>`; btn.disabled = false; return; }
+    if (councilMode === 'code_review') body.code = input;
+    else body.jsonl = input;
   }
 
   // Determine which stages to show
@@ -493,6 +551,13 @@ function renderResults(data) {
     body.className = 'question-body';
 
     // Consensus
+    const mergedFindings = q.phase2?.merged_findings;
+    if (Array.isArray(mergedFindings) && mergedFindings.length) {
+      const fb = document.createElement('div');
+      fb.className = 'findings-box';
+      fb.innerHTML = `<strong>Findings:</strong><ul>${mergedFindings.map(f => `<li><strong>${f.severity || 'unknown'}</strong> · ${f.status || 'unknown'} · ${f.finding || ''}</li>`).join('')}</ul>`;
+      body.appendChild(fb);
+    }
     const consensus = q.phase2?.consensus;
     if (consensus) {
       const cb = document.createElement('div');
@@ -546,7 +611,11 @@ function renderVerdict(v, qi) {
 
   if (v.verdict) {
     inner += `<div class="verdict-text">${v.verdict}</div>`;
-    inner += `<div class="verdict-basis">Basis: ${v.basis || ''} &middot; ${v.reason || ''}</div>`;
+    const counts = [];
+    if (v.findings_count !== undefined) counts.push(`${v.findings_count} findings`);
+    if (v.confirmed_bugs !== undefined) counts.push(`${v.confirmed_bugs} confirmed`);
+    if (v.disputed !== undefined) counts.push(`${v.disputed} disputed`);
+    inner += `<div class="verdict-basis">Basis: ${v.basis || ''}${v.reason ? ' &middot; ' + v.reason : ''}${counts.length ? ' &middot; ' + counts.join(' · ') : ''}</div>`;
   } else {
     inner += `<div class="verdict-unresolved">${v.reason || 'Insufficiently stable to render confidently'}</div>`;
   }
@@ -713,13 +782,14 @@ $('exportSummaryBtn').onclick = () => {
 $('exportGroupedBtn').onclick = () => {
   downloadBackendArtifact('grouped', () => {
     if (!lastPayload?.data?.questions) return;
-    const run = {
-      run_id: lastPayload.data.run_id || null, code_hash: lastPayload.data.code_hash || null,
+      const run = {
+      run_id: lastPayload.data.run_id || null, code_hash: lastPayload.data.code_hash || null, mode: lastPayload.data.mode || null,
       timestamp: new Date().toISOString(), questions: []
     };
     lastPayload.data.questions.forEach(q => {
       const qObj = {
         index: q.question_index, text: q.question_text,
+        phase2: q.phase2 || null,
         consensus: q.phase2?.consensus || null,
         strongest_weighted: q.strongest_weighted || null, weakest_weighted: q.weakest_weighted || null,
         verdict: q.verdict || null, replies: []
@@ -745,6 +815,9 @@ function truncate(str, len) {
   if (!str) return '';
   return str.length > len ? str.slice(0, len) + '...' : str;
 }
+
+$('councilMode').addEventListener('change', syncModeUI);
+syncModeUI();
 
 </script>
 </body>

@@ -15,6 +15,7 @@ import threading
 import time
 import uuid
 from flask import Flask, request, send_from_directory, jsonify, send_file, Response, stream_with_context
+from council_modes import get_mode
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -74,9 +75,11 @@ def resolve_artifact_path(relpath: str):
     return candidate
 
 
-def run_council_with_file(prompt_file: str, run_rebuttal=False, run_refine=False, run_reverse_rebuttal=False, domain=None):
+def run_council_with_file(prompt_file: str, run_rebuttal=False, run_refine=False, run_reverse_rebuttal=False, domain=None, council_mode=None):
     """Run council_basic.py against a JSONL prompt file and return stdout/stderr."""
     cmd = ["python3", COUNCIL_SCRIPT, "--file", prompt_file]
+    if council_mode:
+        cmd.extend(["--mode", council_mode])
     if domain:
         cmd.extend(["--domain", domain])
     if COUNCIL_ARTIFACTS_DIR:
@@ -135,21 +138,23 @@ def create_job():
     return job_id
 
 
-def start_async_run(prompt_file: str, run_rebuttal=False, run_refine=False, run_reverse_rebuttal=False, domain=None, temp_file_path=None):
+def start_async_run(prompt_file: str, run_rebuttal=False, run_refine=False, run_reverse_rebuttal=False, domain=None, council_mode=None, temp_file_path=None):
     job_id = create_job()
     thread = threading.Thread(
         target=_run_council_job,
-        args=(job_id, prompt_file, run_rebuttal, run_refine, run_reverse_rebuttal, domain, temp_file_path),
+        args=(job_id, prompt_file, run_rebuttal, run_refine, run_reverse_rebuttal, domain, council_mode, temp_file_path),
         daemon=True,
     )
     thread.start()
     return job_id
 
 
-def _run_council_job(job_id, prompt_file, run_rebuttal, run_refine, run_reverse_rebuttal, domain, temp_file_path):
+def _run_council_job(job_id, prompt_file, run_rebuttal, run_refine, run_reverse_rebuttal, domain, council_mode, temp_file_path):
     stdout_path = None
     try:
         cmd = ["python3", COUNCIL_SCRIPT, "--file", prompt_file]
+        if council_mode:
+            cmd.extend(["--mode", council_mode])
         if domain:
             cmd.extend(["--domain", domain])
         if COUNCIL_ARTIFACTS_DIR:
@@ -251,6 +256,35 @@ def validate_turns(turns):
     return None
 
 
+def normalize_custom_input(council_mode, custom_jsonl=None, code_text=None):
+    mode_cfg = get_mode(council_mode)
+    input_type = mode_cfg.get("input_type", "jsonl")
+    if input_type == "code":
+        code_text = (code_text or "").rstrip()
+        if not code_text:
+            return None, "code_review mode requires pasted code"
+        return [{"role": "user", "content": code_text}], None
+
+    raw = (custom_jsonl or "").strip()
+    if not raw:
+        return None, "custom mode requires JSONL"
+    turns = []
+    if raw.startswith("["):
+        try:
+            parsed = json.loads(raw)
+            turns = parsed if isinstance(parsed, list) else [parsed]
+        except Exception as e:
+            return None, f"invalid_json: {e}"
+    else:
+        for line_no, ln in enumerate(raw.splitlines(), 1):
+            if ln.strip():
+                try:
+                    turns.append(json.loads(ln.strip()))
+                except Exception as e:
+                    return None, f"invalid_jsonl line {line_no}: {e}"
+    return turns, None
+
+
 @app.route("/api/run", methods=["POST"])
 def api_run():
     if COUNCIL_WEB_API_KEY:
@@ -260,38 +294,34 @@ def api_run():
 
     data = request.get_json(force=True, silent=True) or {}
     mode = data.get("mode", "nato_v3")
+    council_mode = data.get("council_mode", "sistm_stress")
     run_rebuttal_flag = str(data.get("rebuttal", os.getenv("RUN_REBUTTAL", ""))).lower() in ("1", "true", "yes", "on")
     run_refine_flag = str(data.get("refine", os.getenv("RUN_REFINE", ""))).lower() in ("1", "true", "yes", "on")
     custom_jsonl = data.get("jsonl")
+    code_text = data.get("code")
     run_reverse_flag = str(data.get("reverse_rebuttal", os.getenv("RUN_REVERSE_REBUTTAL", ""))).lower() in ("1", "true", "yes", "on")
 
-    if mode == "custom" and not (custom_jsonl and custom_jsonl.strip()):
-        return jsonify({"returncode": -1, "data": {"error": "no_custom_jsonl"}, "stderr": "custom mode requires JSONL"}), 400
+    mode_cfg = get_mode(council_mode)
+    if mode == "custom":
+        if mode_cfg.get("input_type") == "code" and not (code_text and code_text.strip()):
+            return jsonify({"returncode": -1, "data": {"error": "no_code_input"}, "stderr": "code_review mode requires pasted code"}), 400
+        if mode_cfg.get("input_type") != "code" and not (custom_jsonl and custom_jsonl.strip()):
+            return jsonify({"returncode": -1, "data": {"error": "no_custom_jsonl"}, "stderr": "custom mode requires JSONL"}), 400
 
     prompt_path = DEFAULT_PROMPTS
     temp_file = None
 
     try:
         if custom_jsonl:
-            raw = custom_jsonl.strip()
-            lines = []
-            turns = []
-            if raw.startswith("["):
-                try:
-                    parsed = json.loads(raw)
-                    if isinstance(parsed, list):
-                        turns = parsed
-                    else:
-                        turns = [parsed]
-                except Exception as e:
-                    return jsonify({"returncode": -1, "data": {"error": "invalid_json", "detail": str(e)}}), 400
-            else:
-                for line_no, ln in enumerate(raw.splitlines(), 1):
-                    if ln.strip():
-                        try:
-                            turns.append(json.loads(ln.strip()))
-                        except Exception as e:
-                            return jsonify({"returncode": -1, "data": {"error": "invalid_jsonl", "detail": f"line {line_no}: {e}"}}), 400
+            pass
+        if custom_jsonl or (mode == "custom" and code_text):
+            turns, normalize_error = normalize_custom_input(council_mode, custom_jsonl=custom_jsonl, code_text=code_text)
+            if normalize_error:
+                if normalize_error.startswith("invalid_json:"):
+                    return jsonify({"returncode": -1, "data": {"error": "invalid_json", "detail": normalize_error.split(": ", 1)[1]}}), 400
+                if normalize_error.startswith("invalid_jsonl line"):
+                    return jsonify({"returncode": -1, "data": {"error": "invalid_jsonl", "detail": normalize_error.replace("invalid_jsonl ", "")}}), 400
+                return jsonify({"returncode": -1, "data": {"error": "invalid_custom_turns", "detail": normalize_error}}), 400
             validation_error = validate_turns(turns)
             if validation_error:
                 return jsonify({"returncode": -1, "data": {"error": "invalid_custom_turns", "detail": validation_error}}), 400
@@ -309,10 +339,10 @@ def api_run():
             prompt_path = PROMPT_PRESETS[mode]
             domain = mode  # preset key is the domain label
         elif mode == "custom":
-            domain = data.get("domain") or "custom"
+            domain = data.get("domain") or ("code_review" if council_mode == "code_review" else "custom")
         # else: prompt_path already set
 
-        code, out, err = run_council_with_file(prompt_path, run_rebuttal_flag, run_refine_flag, run_reverse_flag, domain=domain)
+        code, out, err = run_council_with_file(prompt_path, run_rebuttal_flag, run_refine_flag, run_reverse_flag, domain=domain, council_mode=council_mode)
         try:
             data = json.loads(out)
         except Exception:
@@ -345,34 +375,32 @@ def api_run_async():
 
     data = request.get_json(force=True, silent=True) or {}
     mode = data.get("mode", "nato_v3")
+    council_mode = data.get("council_mode", "sistm_stress")
     run_rebuttal_flag = str(data.get("rebuttal", os.getenv("RUN_REBUTTAL", ""))).lower() in ("1", "true", "yes", "on")
     run_refine_flag = str(data.get("refine", os.getenv("RUN_REFINE", ""))).lower() in ("1", "true", "yes", "on")
     custom_jsonl = data.get("jsonl")
+    code_text = data.get("code")
     run_reverse_flag = str(data.get("reverse_rebuttal", os.getenv("RUN_REVERSE_REBUTTAL", ""))).lower() in ("1", "true", "yes", "on")
 
-    if mode == "custom" and not (custom_jsonl and custom_jsonl.strip()):
-        return jsonify({"error": "no_custom_jsonl", "detail": "custom mode requires JSONL"}), 400
+    mode_cfg = get_mode(council_mode)
+    if mode == "custom":
+        if mode_cfg.get("input_type") == "code" and not (code_text and code_text.strip()):
+            return jsonify({"error": "no_code_input", "detail": "code_review mode requires pasted code"}), 400
+        if mode_cfg.get("input_type") != "code" and not (custom_jsonl and custom_jsonl.strip()):
+            return jsonify({"error": "no_custom_jsonl", "detail": "custom mode requires JSONL"}), 400
 
     prompt_path = DEFAULT_PROMPTS
     temp_path = None
     domain = None
 
-    if custom_jsonl:
-        raw = custom_jsonl.strip()
-        turns = []
-        if raw.startswith("["):
-            try:
-                parsed = json.loads(raw)
-                turns = parsed if isinstance(parsed, list) else [parsed]
-            except Exception as e:
-                return jsonify({"error": "invalid_json", "detail": str(e)}), 400
-        else:
-            for line_no, ln in enumerate(raw.splitlines(), 1):
-                if ln.strip():
-                    try:
-                        turns.append(json.loads(ln.strip()))
-                    except Exception as e:
-                        return jsonify({"error": "invalid_jsonl", "detail": f"line {line_no}: {e}"}), 400
+    if custom_jsonl or (mode == "custom" and code_text):
+        turns, normalize_error = normalize_custom_input(council_mode, custom_jsonl=custom_jsonl, code_text=code_text)
+        if normalize_error:
+            if normalize_error.startswith("invalid_json:"):
+                return jsonify({"error": "invalid_json", "detail": normalize_error.split(": ", 1)[1]}), 400
+            if normalize_error.startswith("invalid_jsonl line"):
+                return jsonify({"error": "invalid_jsonl", "detail": normalize_error.replace("invalid_jsonl ", "")}), 400
+            return jsonify({"error": "invalid_custom_turns", "detail": normalize_error}), 400
         validation_error = validate_turns(turns)
         if validation_error:
             return jsonify({"error": "invalid_custom_turns", "detail": validation_error}), 400
@@ -387,9 +415,9 @@ def api_run_async():
         prompt_path = PROMPT_PRESETS[mode]
         domain = mode
     elif mode == "custom":
-        domain = data.get("domain") or "custom"
+        domain = data.get("domain") or ("code_review" if council_mode == "code_review" else "custom")
 
-    job_id = start_async_run(prompt_path, run_rebuttal_flag, run_refine_flag, run_reverse_flag, domain=domain, temp_file_path=temp_path)
+    job_id = start_async_run(prompt_path, run_rebuttal_flag, run_refine_flag, run_reverse_flag, domain=domain, council_mode=council_mode, temp_file_path=temp_path)
     return jsonify({"job_id": job_id, "status": "queued"})
 
 

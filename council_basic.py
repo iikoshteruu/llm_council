@@ -60,6 +60,7 @@ def build_grouped_export(result_obj):
     grouped = {
         "run_id": result_obj.get("run_id"),
         "code_hash": result_obj.get("code_hash"),
+        "mode": result_obj.get("mode"),
         "domain": result_obj.get("domain"),
         "questions": [],
     }
@@ -68,6 +69,7 @@ def build_grouped_export(result_obj):
             "index": q.get("question_index"),
             "text": q.get("question_text"),
             "domain": q.get("domain") or result_obj.get("domain"),
+            "phase2": q.get("phase2"),
             "consensus": q.get("phase2", {}).get("consensus") if isinstance(q.get("phase2"), dict) else None,
             "strongest_weighted": q.get("strongest_weighted"),
             "weakest_weighted": q.get("weakest_weighted"),
@@ -108,9 +110,10 @@ def build_ndjson_lines(result_obj):
         for r in q.get("replies", []):
             lines.append(json.dumps({
                 "question_index": q.get("question_index"),
-                "question_text": q.get("question_text"),
-                "domain": q.get("domain") or result_obj.get("domain"),
-                "model": r.get("model"),
+            "question_text": q.get("question_text"),
+            "domain": q.get("domain") or result_obj.get("domain"),
+            "mode": result_obj.get("mode"),
+            "model": r.get("model"),
                 "text": r.get("text"),
                 "original_text": r.get("original_text") or None,
                 "revised_text": r.get("revised_text") or None,
@@ -1105,10 +1108,10 @@ def main():
                     if not consensus_text:
                         consensus_text = "No consensus label extracted"
                 q_phase2_final = {
+                    **(out_parsed if isinstance(out_parsed, dict) else {}),
                     "consensus": consensus_text,
                     "strongest": strongest,
                     "weakest": weakest,
-                    "differences": out_parsed.get("differences") if isinstance(out_parsed, dict) else None,
                 }
             else:
                 strongest = weakest = None
