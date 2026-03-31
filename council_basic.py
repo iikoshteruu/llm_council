@@ -269,7 +269,7 @@ def majority_consensus(question_text, answers):
     return None
 
 
-def classify_verdict(q_replies):
+def classify_verdict(q_replies, phase2=None):
     """Deterministically classify verdict type and confidence from deliberation data.
 
     Returns (verdict_type, confidence, basis_method) where:
@@ -355,7 +355,7 @@ def classify_verdict(q_replies):
     return verdict_type, confidence, basis_method
 
 
-def council_verdict(question_text, q_replies, consensus_text, mode_cfg=None):
+def council_verdict(question_text, q_replies, consensus_text, mode_cfg=None, phase2=None):
     """Synthesize the council's final answer from deliberation results.
 
     Deterministic classification first, then LLM synthesis only when
@@ -365,7 +365,7 @@ def council_verdict(question_text, q_replies, consensus_text, mode_cfg=None):
     strongest = sorted_replies[0]
 
     classifier = (mode_cfg or {}).get("verdict_classifier", classify_verdict)
-    verdict_type, confidence, basis_method = classifier(q_replies)
+    verdict_type, confidence, basis_method = classifier(q_replies, phase2=phase2)
 
     # If unstable/inconclusive or contested with low confidence, don't force a verdict
     no_render_types = {"unstable", "inconclusive"}
@@ -429,7 +429,7 @@ def council_verdict(question_text, q_replies, consensus_text, mode_cfg=None):
         verdict_text = strongest.get("text", "")
         llm_basis = f"Strongest reply ({strongest['model']}) used as fallback"
 
-    return {
+    result = {
         "verdict": verdict_text,
         "verdict_type": verdict_type,
         "confidence": confidence,
@@ -438,6 +438,21 @@ def council_verdict(question_text, q_replies, consensus_text, mode_cfg=None):
         "strongest_model": strongest["model"],
         "strongest_score": strongest.get("weighted_score", 0),
     }
+
+    # Add findings counts for code review mode
+    if isinstance(phase2, dict) and phase2.get("merged_findings"):
+        merged = phase2["merged_findings"]
+        result["findings_count"] = len(merged)
+        result["confirmed_bugs"] = len([f for f in merged if isinstance(f, dict) and f.get("status") == "confirmed"])
+        result["disputed"] = len([f for f in merged if isinstance(f, dict) and f.get("status") == "disputed"])
+
+    # Preserve any extra fields from the LLM synthesis (findings_count, confirmed_bugs, etc.)
+    if isinstance(parsed, dict):
+        for k in ("findings_count", "confirmed_bugs", "disputed"):
+            if k in parsed and k not in result:
+                result[k] = parsed[k]
+
+    return result
 
 
 def call_openai(history):
@@ -1120,7 +1135,7 @@ def main():
             verdict_obj = None
             if q_replies:
                 progress("verdict_start", run_id=run_id, question_index=q_idx + 1)
-                verdict_obj = council_verdict(question_text, q_replies, q_phase2_final.get("consensus", "") if isinstance(q_phase2_final, dict) else "", mode_cfg=mode_cfg)
+                verdict_obj = council_verdict(question_text, q_replies, q_phase2_final.get("consensus", "") if isinstance(q_phase2_final, dict) else "", mode_cfg=mode_cfg, phase2=q_phase2_final)
                 if not quiet_json:
                     print(f"{local_model} (verdict q{q_idx+1}/{num_q}):", verdict_obj.get("verdict", "")[:120])
             questions_out.append({

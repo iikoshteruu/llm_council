@@ -48,7 +48,7 @@ SISTM_AXIS_PROMPT = os.getenv("LOCAL_SYSTEM_AXIS", "You are a terse rater for a 
 SISTM_VERDICT_PROMPT = os.getenv("LOCAL_SYSTEM_VERDICT", "You are the council's final voice. You have received a question, the council's replies, flaw annotations, axis scores, and the consensus position. Your job is to deliver the council's verdict: a direct, mechanism-based answer to the question. Rules: (1) Start from the strongest reply's position and reasoning. (2) Incorporate specific mechanisms or evidence from other replies that strengthen the answer, but only if those replies had no flaw labels. (3) Strip any reasoning that was flagged as flawed (hedge, evasion, abstraction, frame shift, etc). (4) Do not hedge, equivocate, or add caveats. (5) Do not mention the models, the deliberation process, or that you are synthesizing. Just answer the question directly. (6) Two to four sentences maximum. (7) Ground claims in the specific mechanisms identified during deliberation. Respond with valid JSON only: {\"verdict\": \"<the answer>\", \"basis\": \"<one sentence: which reply's reasoning anchored this and why>\"}.")
 
 
-def sistm_verdict_classifier(q_replies):
+def sistm_verdict_classifier(q_replies, phase2=None):
     """Deterministic verdict classification for SISTM stress test mode."""
     if not q_replies:
         return "unstable", "low", "no_replies"
@@ -161,67 +161,75 @@ CODE_REVIEW_AXIS_PROMPT = "You are a terse rater for a single code review axis. 
 CODE_REVIEW_VERDICT_PROMPT = "You are the council's code review lead. You have received a code snippet, three independent code reviews, their flaw annotations, axis scores, and merged findings. Deliver the council's findings report. Rules: (1) List each confirmed bug with severity, evidence, and recommended fix. (2) Note any disputed findings and why reviewers disagreed. (3) Do not include style suggestions or false positives in the findings. (4) Do not mention the models or the review process. Present findings as if you reviewed the code yourself. (5) Be direct and specific — cite line numbers or patterns where possible. Respond with valid JSON only: {\"verdict\": \"<findings summary — 2-5 sentences>\", \"findings_count\": N, \"confirmed_bugs\": N, \"disputed\": N, \"basis\": \"<one sentence: which reviewer's analysis anchored this>\"}."
 
 
-def code_review_verdict_classifier(q_replies):
+def code_review_verdict_classifier(q_replies, phase2=None):
     """Deterministic verdict classification for code review mode.
 
+    Uses phase2.merged_findings as the source of truth — that's where
+    the adjudicator deduplicates and classifies findings across reviewers.
+
     Types:
-      confirmed — all reviewers agree on the primary finding(s)
-      disputed — reviewers disagree on whether a key finding is a real bug
+      confirmed — findings exist and reviewers agree on the primary ones
+      disputed — reviewers disagree on whether key findings are real bugs
       clean — no bugs found by any reviewer
       inconclusive — mixed signals, insufficient agreement
     """
     if not q_replies:
         return "inconclusive", "low", "no_replies"
 
+    # Primary source: phase2 merged_findings
+    merged = []
+    if isinstance(phase2, dict):
+        merged = phase2.get("merged_findings", [])
+
+    if merged:
+        confirmed = [f for f in merged if isinstance(f, dict) and f.get("status") == "confirmed"]
+        disputed = [f for f in merged if isinstance(f, dict) and f.get("status") == "disputed"]
+        unique = [f for f in merged if isinstance(f, dict) and f.get("status") == "unique"]
+        style_only = all(
+            isinstance(f, dict) and f.get("severity") == "style"
+            for f in merged
+        )
+
+        total_real = len(confirmed) + len(disputed) + len(unique)
+
+        if total_real == 0 or style_only:
+            return "clean", "high", "no_real_bugs_in_merged_findings"
+
+        if confirmed and not disputed:
+            confidence = "high" if len(confirmed) >= 2 else "moderate"
+            return "confirmed", confidence, f"{len(confirmed)}_confirmed_findings"
+
+        if confirmed and disputed:
+            confidence = "moderate" if len(confirmed) > len(disputed) else "low"
+            return "disputed", confidence, f"{len(confirmed)}_confirmed_{len(disputed)}_disputed"
+
+        if disputed and not confirmed:
+            return "disputed", "low", f"{len(disputed)}_disputed_no_confirmed"
+
+        if unique and not confirmed and not disputed:
+            return "confirmed", "moderate", f"{len(unique)}_unique_findings"
+
+        return "inconclusive", "low", "mixed_signals"
+
+    # Fallback: if phase2 has no merged_findings, check reply-level data
+    # Count reviewers whose text mentions bugs/issues (rough heuristic)
     sorted_replies = sorted(q_replies, key=lambda x: x.get("weighted_score", 0), reverse=True)
-    scores = [r.get("weighted_score", 0) for r in sorted_replies]
-    score_gap = scores[0] - scores[-1] if len(scores) > 1 else 0
-
-    # Check phase1 findings for agreement patterns
-    all_findings = []
-    for r in sorted_replies:
-        phase1 = r.get("phase1", [])
-        findings = []
-        for p in (phase1 if isinstance(phase1, list) else [phase1]):
-            if isinstance(p, dict):
-                findings.append(p.get("label") or p.get("flaw_label"))
-        all_findings.append(findings)
-
-    # Count how many reviewers found real bugs
+    bug_keywords = {"bug", "error", "vulnerability", "race condition", "security", "issue", "flaw", "missing", "incorrect"}
     reviewers_with_bugs = 0
-    reviewers_clean = 0
-    for findings in all_findings:
-        has_real_bug = any(f in ("correct_finding", None, "") for f in findings if f)
-        has_only_style = all(f in ("style_not_bug", "false_positive") for f in findings if f)
-        if not findings or has_only_style:
-            reviewers_clean += 1
-        elif has_real_bug:
+    for r in sorted_replies:
+        text = (r.get("text") or "").lower()
+        if any(kw in text for kw in bug_keywords):
             reviewers_with_bugs += 1
 
     n = len(sorted_replies)
-
-    if reviewers_clean == n:
-        verdict_type = "clean"
-        basis_method = "no_bugs_found"
-        confidence = "high" if n >= 3 else "moderate"
+    if reviewers_with_bugs == 0:
+        return "clean", "moderate", "no_bug_keywords_in_replies"
     elif reviewers_with_bugs == n:
-        verdict_type = "confirmed"
-        basis_method = "all_reviewers_found_bugs"
-        confidence = "high" if score_gap < 5.0 else "moderate"
-    elif reviewers_with_bugs >= 2 and reviewers_clean <= 1:
-        verdict_type = "confirmed"
-        basis_method = "majority_found_bugs"
-        confidence = "moderate"
-    elif reviewers_with_bugs >= 1 and reviewers_clean >= 1:
-        verdict_type = "disputed"
-        basis_method = "reviewers_disagree_on_bugs"
-        confidence = "low"
+        return "confirmed", "moderate", "all_reviewers_mention_bugs"
+    elif reviewers_with_bugs >= 2:
+        return "confirmed", "low", "majority_mention_bugs"
     else:
-        verdict_type = "inconclusive"
-        basis_method = "mixed_signals"
-        confidence = "low"
-
-    return verdict_type, confidence, basis_method
+        return "disputed", "low", "minority_mention_bugs"
 
 
 CODE_REVIEW_MODE = {
