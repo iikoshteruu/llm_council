@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Council TUI – Web</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: "Segoe UI", sans-serif; background:#0f172a; color:#e2e8f0; margin:0; padding:24px; }
+    h1 { margin-top:0; }
+    .panel { background:#111827; border:1px solid #1f2937; border-radius:8px; padding:16px; margin-bottom:16px; }
+    textarea, select, input, button { width:100%; box-sizing:border-box; font-size:14px; border-radius:6px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; padding:10px; }
+    textarea { min-height:140px; resize:vertical; }
+    button { cursor:pointer; font-weight:600; margin-top:8px; }
+    pre { white-space:pre-wrap; word-break:break-word; background:#0b1220; border:1px solid #1f2937; border-radius:6px; padding:12px; }
+    label { font-weight:600; display:block; margin-bottom:6px; }
+    .flex { display:flex; gap:12px; flex-wrap:wrap; }
+    .flex > div { flex:1 1 260px; }
+  </style>
+</head>
+<body>
+  <h1>Council Runner (Web)</h1>
+    <div class="panel">
+      <div class="flex">
+        <div>
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option value="nato_v3" selected>NATO SISTM v3 (built-in)</option>
+            <option value="constitutional">Constitutional (federalism)</option>
+            <option value="finance">Finance (SISTM)</option>
+            <option value="ml_systems">ML Systems (SISTM)</option>
+            <option value="energy_nuclear">Energy – Nuclear (SISTM)</option>
+            <option value="energy_grid">Energy – Grid/Storage (SISTM)</option>
+            <option value="carbon">Carbon Removal (SISTM)</option>
+            <option value="privacy">Privacy/Crypto (SISTM)</option>
+            <option value="bio_med">Bio/Med (SISTM)</option>
+            <option value="security">Security (SISTM)</option>
+            <option value="cloud">Cloud/K8s (SISTM)</option>
+            <option value="softeng">Software Engineering (SISTM)</option>
+            <option value="international_law">International Law (SISTM)</option>
+            <option value="trade_sanctions">Trade/Sanctions (SISTM)</option>
+            <option value="criminal_justice">Criminal Justice (SISTM)</option>
+            <option value="ai_governance">AI Governance (SISTM)</option>
+            <option value="maritime_space">Maritime/Space (SISTM)</option>
+            <option value="labor_automation">Labor/Automation (SISTM)</option>
+            <option value="public_health">Public Health (SISTM)</option>
+            <option value="education">Education Policy (SISTM)</option>
+            <option value="housing">Housing/Land Use (SISTM)</option>
+            <option value="surveillance">Surveillance/Intelligence (SISTM)</option>
+            <option value="monetary_policy">Monetary Policy (SISTM)</option>
+            <option value="food_agriculture">Food/Agriculture (SISTM)</option>
+            <option value="custom">Custom JSONL (provide below)</option>
+          </select>
+        </div>
+        <div>
+          <label for="apiKey">API key (optional)</label>
+          <input id="apiKey" type="password" placeholder="X-API-Key for /api/run">
+        </div>
+      </div>
+      <div class="flex">
+        <div>
+          <label><input type="checkbox" id="rebuttalChk"> Run rebuttal round</label>
+        </div>
+        <div>
+          <label><input type="checkbox" id="refineChk"> Run refine/flip round (requires rebuttal)</label>
+        </div>
+        <div>
+          <label><input type="checkbox" id="reverseRebChk"> Reverse rebuttal order</label>
+        </div>
+      </div>
+      <label for="jsonl">Custom JSONL (optional)</label>
+      <textarea id="jsonl" placeholder='{"role":"user","content":"Question text..."}'></textarea>
+      <button id="runBtn">Run Council</button>
+    </div>
+
+    <div class="panel">
+      <div class="flex">
+        <div><label>Result</label></div>
+        <div style="text-align:right;">
+          <button id="exportBtn" style="width:auto;">Download NDJSON (per reply)</button>
+          <button id="exportGroupedBtn" style="width:auto;">Download grouped.json</button>
+          <button id="exportSummaryBtn" style="width:auto;">Download summary.json</button>
+        </div>
+      </div>
+      <div id="output">Waiting...</div>
+    </div>
+
+  <script>
+    const runBtn = document.getElementById('runBtn');
+    const modeSel = document.getElementById('mode');
+    const jsonlArea = document.getElementById('jsonl');
+    const rebuttalChk = document.getElementById('rebuttalChk');
+    const refineChk = document.getElementById('refineChk');
+    const reverseRebChk = document.getElementById('reverseRebChk');
+    const out = document.getElementById('output');
+    const apiKeyInput = document.getElementById('apiKey');
+    const exportBtn = document.getElementById('exportBtn');
+    const exportGroupedBtn = document.getElementById('exportGroupedBtn');
+    const exportSummaryBtn = document.getElementById('exportSummaryBtn');
+    let lastPayload = null;
+
+    function authHeaders() {
+      return apiKeyInput.value.trim() ? { 'X-API-Key': apiKeyInput.value.trim() } : {};
+    }
+
+    function downloadBackendArtifact(kind, fallback) {
+      const artifacts = lastPayload && lastPayload.data && lastPayload.data.artifacts;
+      const relpath = artifacts && artifacts[kind];
+      if (!relpath) {
+        if (typeof fallback === 'function') fallback();
+        return;
+      }
+      const url = `/api/artifact?path=${encodeURIComponent(relpath)}`;
+      fetch(url, { headers: authHeaders() })
+        .then(async res => {
+          if (!res.ok) throw new Error(`artifact download failed (${res.status})`);
+          const blob = await res.blob();
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = relpath.split('/').pop();
+          link.click();
+          URL.revokeObjectURL(link.href);
+        })
+        .catch(err => {
+          out.textContent = 'Error: ' + err;
+        });
+    }
+
+    runBtn.onclick = async () => {
+      out.textContent = 'Running...';
+      const mode = modeSel.value;
+      const jsonl = jsonlArea.value.trim();
+      const body = { mode };
+      body.rebuttal = rebuttalChk.checked;
+      body.refine = refineChk.checked;
+      body.reverse_rebuttal = reverseRebChk.checked;
+      if (mode === 'custom') {
+        if (!jsonl) {
+          out.textContent = 'Error: custom mode requires JSONL input.';
+          return;
+        }
+        body.jsonl = jsonl;
+      }
+      try {
+        const res = await fetch('/api/run', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders()
+          },
+          body: JSON.stringify(body)
+        });
+        const payload = await res.json();
+        renderResult(payload);
+      } catch (e) {
+        out.textContent = 'Error: ' + e;
+      }
+    };
+
+    exportBtn.onclick = () => {
+      downloadBackendArtifact('ndjson', () => {
+      if (!lastPayload || !lastPayload.data || !lastPayload.data.questions) return;
+      const lines = [];
+      lastPayload.data.questions.forEach(q => {
+          (q.replies || []).forEach(r => {
+            lines.push(JSON.stringify({
+              question_index: q.question_index,
+              question_text: q.question_text,
+              model: r.model,
+              text: r.text,
+              original_text: r.original_text || null,
+              revised_text: r.revised_text || null,
+              rebuttal_text: r.rebuttal_text || null,
+              rebuttal_target: r.rebuttal_target || null,
+              flip: r.flip || null,
+              compliant: r.compliant,
+              conviction_bonus: r.conviction_bonus ?? null,
+              weighted_score: r.weighted_score,
+              phase1: r.phase1 || null,
+              axis_scores: r.axis_scores || null,
+              phase2_consensus: q.phase2 ? q.phase2.consensus : null,
+            phase2_strongest: q.phase2 ? q.phase2.strongest : null,
+            phase2_weakest: q.phase2 ? q.phase2.weakest : null,
+            strongest_weighted: q.strongest_weighted || null,
+            weakest_weighted: q.weakest_weighted || null
+          }));
+        });
+      });
+      const blob = new Blob([lines.join('\n') + '\n'], {type: 'application/x-ndjson'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'council_replies.ndjson';
+      a.click();
+      URL.revokeObjectURL(url);
+      });
+    };
+
+    exportSummaryBtn.onclick = () => {
+      downloadBackendArtifact('summary', () => {
+      if (!lastPayload || !lastPayload.data || !lastPayload.data.summary) return;
+      const blob = new Blob([JSON.stringify(lastPayload.data.summary, null, 2)], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'summary.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      });
+    };
+
+    exportGroupedBtn.onclick = () => {
+      downloadBackendArtifact('grouped', () => {
+      if (!lastPayload || !lastPayload.data || !lastPayload.data.questions) return;
+      const run = {
+        run_id: lastPayload.data.run_id || null,
+        code_hash: lastPayload.data.code_hash || null,
+        timestamp: new Date().toISOString(),
+        questions: []
+      };
+      (lastPayload.data.questions || []).forEach(q => {
+        const qObj = {
+          index: q.question_index,
+          text: q.question_text,
+          consensus: q.phase2 ? q.phase2.consensus : null,
+          strongest_weighted: q.strongest_weighted || null,
+          weakest_weighted: q.weakest_weighted || null,
+          strongest: q.phase2 ? q.phase2.strongest : null,
+          weakest: q.phase2 ? q.phase2.weakest : null,
+          verdict: q.verdict ? q.verdict.verdict : null,
+          verdict_type: q.verdict ? q.verdict.verdict_type : null,
+          verdict_confidence: q.verdict ? q.verdict.confidence : null,
+          verdict_basis: q.verdict ? q.verdict.basis : null,
+          verdict_reason: q.verdict ? q.verdict.reason : null,
+          replies: []
+        };
+        (q.replies || []).forEach(r => {
+          const flip = (r.flip && typeof r.flip === 'object') ? r.flip : { flip: r.flip || false, flip_reason: null, flip_source: null };
+          qObj.replies.push({
+            model: r.model,
+            original: r.original_text || null,
+            final: r.text || null,
+            rebuttal: r.rebuttal_text || null,
+            rebuttal_target: r.rebuttal_target || null,
+            flip: !!flip.flip,
+            flip_reason: flip.flip_reason || null,
+            flip_source: flip.flip_source || null,
+            compliant: r.compliant,
+            conviction_bonus: r.conviction_bonus !== undefined ? r.conviction_bonus : null,
+            weighted_score: r.weighted_score,
+            phase1: r.phase1 || null,
+            axes: r.axis_scores || null
+          });
+        });
+        run.questions.push(qObj);
+      });
+      const blob = new Blob([JSON.stringify(run, null, 2)], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'grouped.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      });
+    };
+
+    function badge(text, ok) {
+      const span = document.createElement('span');
+      span.textContent = text;
+      span.style.padding = '2px 6px';
+      span.style.borderRadius = '4px';
+      span.style.fontSize = '12px';
+      span.style.marginLeft = '6px';
+      span.style.background = ok ? '#065f46' : '#7f1d1d';
+      span.style.color = '#e2e8f0';
+      return span;
+    }
+
+    function renderResult(payload) {
+      const { returncode, data, stderr } = payload;
+      lastPayload = payload;
+      out.innerHTML = '';
+      const rc = document.createElement('div');
+      rc.textContent = `Return code: ${returncode}`;
+      out.appendChild(rc);
+      if (!data || data.error) {
+        const pre = document.createElement('pre');
+        pre.textContent = (data && data.stdout) || `Error: ${data ? data.error : 'unknown'}`;
+        out.appendChild(pre);
+        if (stderr) {
+          const err = document.createElement('pre');
+          err.textContent = stderr;
+          out.appendChild(err);
+        }
+        return;
+      }
+
+      if (!data.questions) {
+        const pre = document.createElement('pre');
+        pre.textContent = JSON.stringify(data, null, 2);
+        out.appendChild(pre);
+        return;
+      }
+
+      data.questions.forEach(q => {
+        const panel = document.createElement('div');
+        panel.className = 'panel';
+        const h = document.createElement('h3');
+        h.textContent = `Question ${q.question_index}: ${q.question_text}`;
+        panel.appendChild(h);
+
+        // replies
+        q.replies?.forEach(r => {
+          const box = document.createElement('div');
+          box.style.border = '1px solid #1f2937';
+          box.style.borderRadius = '6px';
+          box.style.padding = '10px';
+          box.style.marginBottom = '8px';
+          const title = document.createElement('div');
+          title.textContent = r.model;
+          title.appendChild(badge(r.compliant ? 'COMPLIANT' : 'NONCOMPLIANT', r.compliant));
+          box.appendChild(title);
+          const body = document.createElement('div');
+          body.textContent = r.text;
+          body.style.marginTop = '6px';
+          box.appendChild(body);
+          // phase1 annotation if available
+          if (q.phase1 && q.phase1.replies && Array.isArray(q.phase1.replies)) {
+            const ann = q.phase1.replies.find(x => x.model === r.model);
+            if (ann) {
+              const annDiv = document.createElement('div');
+              annDiv.style.fontSize = '12px';
+              annDiv.style.marginTop = '4px';
+              annDiv.textContent = `Direct: ${ann.direct_answer || ''} | Flaw: ${ann.flaw_label || ''} ${ann.flaw_reason ? '– ' + ann.flaw_reason : ''}`;
+              box.appendChild(annDiv);
+            }
+          }
+          // axis scores if available
+          if (r.axis_scores) {
+            const table = document.createElement('table');
+            table.style.fontSize = '12px';
+            table.style.marginTop = '6px';
+            table.style.width = '100%';
+            for (const [axis, obj] of Object.entries(r.axis_scores)) {
+              const tr = document.createElement('tr');
+              const td1 = document.createElement('td');
+              td1.textContent = axis;
+              const td2 = document.createElement('td');
+              td2.textContent = obj.score !== undefined ? obj.score : '';
+              td2.style.textAlign = 'right';
+              const td3 = document.createElement('td');
+              td3.textContent = obj.reason || '';
+              tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+              table.appendChild(tr);
+            }
+            box.appendChild(table);
+          }
+          panel.appendChild(box);
+        });
+
+        // phase2
+        if (q.phase2 && !q.phase2.error) {
+          const p2 = document.createElement('div');
+          p2.style.borderTop = '1px solid #1f2937';
+          p2.style.paddingTop = '8px';
+          const strongestW = q.strongest_weighted || '(weighted n/a)';
+          const weakestW = q.weakest_weighted || '(weighted n/a)';
+          p2.innerHTML = `<strong>Consensus:</strong> ${q.phase2.consensus || ''}<br>
+                          <strong>Strongest (weighted):</strong> ${strongestW}<br>
+                          <strong>Weakest (weighted):</strong> ${weakestW}<br>
+                          <em>Adjudicator (text only): strongest=${q.phase2.strongest || ''}, weakest=${q.phase2.weakest || ''}, differences=${q.phase2.differences || ''}</em>`;
+          panel.appendChild(p2);
+        }
+        // Council verdict
+        if (q.verdict) {
+          const v = q.verdict;
+          const vd = document.createElement('div');
+          vd.style.borderTop = '2px solid #7c3aed';
+          vd.style.paddingTop = '10px';
+          vd.style.marginTop = '8px';
+          vd.style.background = '#1a1333';
+          vd.style.padding = '12px';
+          vd.style.borderRadius = '6px';
+          const typeColors = { unanimous: '#34d399', majority: '#22d3ee', contested: '#fbbf24', unstable: '#f87171' };
+          const confColors = { high: '#34d399', moderate: '#fbbf24', low: '#f87171' };
+          const typeColor = typeColors[v.verdict_type] || '#94a3b8';
+          const confColor = confColors[v.confidence] || '#94a3b8';
+          if (v.verdict) {
+            vd.innerHTML = `<strong style="color:#a78bfa;">Council Verdict</strong>
+              <span style="color:${typeColor};font-size:12px;margin-left:8px;font-weight:600;">${(v.verdict_type || '').toUpperCase()}</span>
+              <span style="color:${confColor};font-size:12px;margin-left:4px;">(${v.confidence || ''} confidence)</span><br>
+              <span style="color:#e2e8f0;margin-top:6px;display:block;">${v.verdict}</span>
+              <em style="color:#64748b;font-size:12px;display:block;margin-top:4px;">Basis: ${v.basis || ''} · ${v.reason || ''}</em>`;
+          } else {
+            vd.innerHTML = `<strong style="color:#a78bfa;">Council Verdict</strong>
+              <span style="color:${typeColor};font-size:12px;margin-left:8px;font-weight:600;">${(v.verdict_type || 'UNRESOLVED').toUpperCase()}</span>
+              <span style="color:${confColor};font-size:12px;margin-left:4px;">(${v.confidence || 'low'} confidence)</span><br>
+              <span style="color:#f87171;margin-top:6px;display:block;">${v.reason || 'Insufficiently stable to render confidently'}</span>`;
+          }
+          panel.appendChild(vd);
+        }
+        if (q.phase2 && q.phase2.error) {
+          const err = document.createElement('pre');
+          err.textContent = `Phase2 parse error: ${q.phase2.error}`;
+          panel.appendChild(err);
+        }
+
+        out.appendChild(panel);
+      });
+    }
+  </script>
+</body>
+</html>

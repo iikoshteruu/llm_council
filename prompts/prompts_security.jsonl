@@ -1,0 +1,4 @@
+{"role": "user", "content": "In one sentence: does zero-trust network architecture reduce lateral movement risk or mainly add operational complexity? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: does pervasive endpoint EDR reduce breach dwell time more than it increases alert fatigue/bypass surface, or not? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: does mandatory hardware-backed attestation (TPM/TEE) improve supply-chain trust or mainly lock in vendor control? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: does widespread client-side CSAM scanning enhance safety or primarily erode end-to-end encryption guarantees? Pick one, give the mechanism, no hedging."}

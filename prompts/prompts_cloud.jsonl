@@ -1,0 +1,4 @@
+{"role": "user", "content": "In one sentence: for Kubernetes autoscaling, does CPU-only HPA improve stability or cause thrash under spiky IO-bound workloads? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: does serverless-first architecture improve cost efficiency for bursty workloads or do cold starts and latency dominate? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: do service meshes improve reliability more than they add operational overhead in medium clusters, or not? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: does multi-AZ deployment improve availability more than it increases cost and latency for typical enterprise apps? Pick one, give the mechanism, no hedging."}

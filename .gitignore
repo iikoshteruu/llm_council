@@ -1,0 +1,33 @@
+# Run artifacts and results
+results/
+council_aggregate.json
+council_report.html
+
+# Secrets
+.env
+.env.local
+compose.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+webapp.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE / tools
+.claude/
+.vscode/
+*.swp
+*.swo
+
+# Archives and legacy tools (not source)
+archive/
+tools/
+memory/

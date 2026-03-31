@@ -1,0 +1,4 @@
+{"role": "user", "content": "In one sentence: do mandatory model evaluations improve AI safety or create regulatory capture? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does releasing open-weight models democratize AI or distribute security risk? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does watermarking AI outputs preserve attribution or break interoperability and privacy? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: do GPU export controls meaningfully reduce misuse risk or stifle open research more than they help safety? Pick one and give the mechanism."}

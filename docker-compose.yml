@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  council:
+    build: /mnt/Pool/llm_council
+    container_name: council-runner
+    ports:
+      - "5000:5000"
+    volumes:
+      - /mnt/Pool/llm_council:/data
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      # Optional: reverse rebuttal default, timeouts, etc.
+      # - RUN_REBUTTAL=1
+      # - RUN_REFINE=1
+      # - RUN_REVERSE_REBUTTAL=0
+      # - COUNCIL_TIMEOUT=600
+    restart: unless-stopped

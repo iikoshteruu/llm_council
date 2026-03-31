@@ -1,0 +1,360 @@
+# LLM Council Runner — System Reference
+
+## Overview
+
+The Council Runner is a multi-model, multi-stage evaluation and deliberation pipeline designed to stress-test prompts that embed structural inversions (SISTM). Three LLMs answer each question independently, optionally deliberate via rebuttal and refinement rounds, and are then scored by a Mistral adjudicator across six quality axes with deterministic weighted scoring, conviction bonuses, and consensus extraction.
+
+---
+
+## Architecture
+
+### Pipeline Stages
+
+**Stage 1 — Prompt Selection**
+Prompts are loaded from per-domain JSONL files or pasted as custom JSONL via the web UI. Each file contains four questions per domain. Prompts embed structural tensions (proxy destabilization, inversion, remedy vs right, sovereignty vs administration) and force a binary choice with mechanism, forbidding hedging.
+
+Available domain sets: finance, ML systems, energy_nuclear, energy_grid, carbon, privacy, bio/med, security, cloud, softeng, NATO v3, Constitutional, international_law, trade_sanctions, criminal_justice, ai_governance, maritime_space, labor_automation, public_health, education, housing, surveillance, monetary_policy, food_agriculture.
+
+**Stage 2 — Council Generation**
+Three models answer each question independently with context isolation (ACCUMULATE_CONTEXT=0 by default, preventing cross-question bleed):
+
+- OpenAI gpt-4.1
+- Anthropic claude-opus-4-6
+- Google models/gemini-flash-latest
+
+Optional Grok hook exists but is typically skipped.
+
+**Stage 3 — Deliberation (Optional)**
+Controlled by "Run rebuttal" and "Run refine/flip" checkboxes in the UI.
+
+- Rebuttal round: Each model receives the other models' answers and produces a one-sentence rebuttal.
+- Refine round: Each model revises its own answer after seeing rebuttals. The refine prompt forbids meta-commentary ("State your position directly; do not mention changing your mind"). Flips (position changes) are detected and tagged.
+
+**Stage 4 — Adjudication**
+All adjudication is performed by Mistral Large.
+
+- Phase 1 — Flaw Labeling: Per-reply evaluation with labels including frame_shift, change_of_basis, hedge, evasion, contradiction, asymmetry, institutional_defense, abstraction, length_violation, premise_echo, noncompliant. Compliance (one sentence) is precomputed; the adjudicator does not recheck sentence count. Each reply carries only its own flaw labels (no cross-broadcast).
+- Phase 2 — Consensus and Ranking: Strongest/weakest per question derived from weighted_score (deterministic, not subjective). Consensus is determined by a dedicated Mistral call (majority_consensus) that reads the three final answers and returns a short label describing the majority position, or "no consensus" if positions genuinely diverge.
+- Axis Scoring: Six axes scored 1–5 with short reason strings (max ~12 words). Axes are scored independently — no cascade (a low score on one axis does not force other axes to floor). Quality is scored blind to compliance; compliance penalty is applied in code.
+
+**Stage 5 — Weighted Scoring**
+Deterministic weighted_score computed from axis scores:
+
+```
+weighted_score = (1.5 × structural_comprehension)
+              + (2.0 × empirical_grounding)
+              + (1.5 × asymmetry_detection)
+              + (1.0 × rhetorical_resistance)
+              + (0.5 × frame_control)
+              + (0.5 × institutional_guarding)
+```
+
+Modifiers:
+
+- Compliance penalty: If noncompliant, weighted_score × 0.6 (signal preserved, not zeroed).
+- Conviction bonus: Added to weighted_score after compliance penalty.
+  - +2: No flip AND clean Phase 1 (no flaw on original answer). Strong initial position held.
+  - 0: Flip with cited_rebuttal (legitimate evidence-driven update). Also 0 for no flip but Phase 1 flagged a flaw on the original (holding a flawed position is not conviction).
+  - −1: Flip with uncited reason (compliance/recency, not evidence-driven).
+
+strongest_weighted and weakest_weighted are derived from final weighted_score.
+
+**Stage 6 — Flip Detection**
+Separate adjudicator call labels each reply's flip status:
+
+- cited_rebuttal: Model changed position and cited evidence from the rebuttal.
+- uncited: Model changed position without citing rebuttal evidence.
+- no_change: Model held original position.
+
+Flip provenance: When a flip is classified as cited_rebuttal, the system also records `flip_source` — which model's rebuttal was cited. This is determined first by the adjudicator prompt, then by a deterministic word-overlap fallback matching the revised text against each rebuttal.
+
+Flip is stored as a flat boolean + flip_reason + flip_source string in exports.
+
+**Stage 7 — Verdict**
+The verdict is the terminal pipeline artifact. It converts deliberation results into a final judgment.
+
+Classification is deterministic (computed in code, not delegated to the LLM):
+- **unanimous**: All model scores within 4pts, no flips. High confidence.
+- **majority**: Clear score gap (>=3), no uncited flips. Moderate-high confidence.
+- **contested**: Narrow margin with flips. Moderate-low confidence.
+- **unstable**: 2+ uncited flips or all models flipped. Low confidence — verdict withheld.
+
+When confidence supports rendering (unanimous, majority, or contested-with-moderate-confidence), a Mistral synthesis call produces the verdict text. The synthesizer starts from the strongest reply's reasoning, incorporates unflagged mechanisms from other replies, strips flagged flaws, and produces a 2-4 sentence answer.
+
+When the evidence is insufficient (unstable or contested-with-low-confidence), the system returns `verdict: null` with a reason. It does not force certainty.
+
+Output schema: `{verdict, verdict_type, confidence, basis, reason, strongest_model, strongest_score}`
+
+The verdict prompt is overridable via `LOCAL_SYSTEM_VERDICT`.
+
+---
+
+## Data Outputs
+
+All four artifact types are written server-side when `--artifacts-dir` is set. The web UI also serves backend-generated artifacts when available, falling back to client-side construction for compatibility.
+
+### NDJSON (Raw Pipeline Output)
+Flat rows, one per model per question. Contains all fields including `domain`, `flip_source`, and `verdict`. File pattern: `council_replies_run_{run_id}.ndjson`
+
+### grouped.json (Structured Export)
+Question-level objects with nested replies. Primary export format for downstream consumption.
+
+- Consensus is produced by a dedicated Mistral adjudicator call (`majority_consensus`) that reads the three final answers and returns a short majority label (≤3 words) or "no consensus". It does **not** rely on parsing the question text.
+
+```json
+{
+  "run_id": 44,
+  "code_hash": "a3f7c2e91b04",
+  "timestamp": "2026-03-30T...",
+  "questions": [
+    {
+      "index": 1,
+      "text": "...",
+      "consensus": "slows teams",
+      "strongest_weighted": "claude-opus-4-6",
+      "weakest_weighted": "gpt-4.1",
+      "replies": [
+        {
+          "model": "gpt-4.1",
+          "original": "...",
+          "final": "...",
+          "rebuttal": "...",
+          "rebuttal_target": null,
+          "flip": false,
+          "flip_reason": "no_change",
+          "compliant": true,
+          "conviction_bonus": 2,
+          "weighted_score": 34.5,
+          "phase1": [{ "compliance": "COMPLIANT", "flaw_label": null, ... }],
+          "axes": {
+            "structural_comprehension": { "score": 5, "reason": "..." },
+            "empirical_grounding": { "score": 5, "reason": "..." },
+            ...
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+Design decisions:
+- Question-level data (consensus, strongest/weakest) appears once, not repeated per model.
+- `revised` field removed (was always identical to `final`).
+- `flip` flattened from nested object to boolean + `flip_reason` at reply level.
+- `conviction_bonus` stored explicitly so the export is self-documenting.
+
+### summary.json (Lightweight Export)
+Per-question summary with consensus, strongest/weakest, flips per model, and original/final stance pairs per model.
+
+---
+
+## Consensus Extraction
+
+Consensus is determined by a single Mistral adjudicator call per question (`majority_consensus`). The three final answers are provided and Mistral returns a short descriptive label of the majority position (e.g., "slows teams", "cuts integration risk", "improves consistency") or "no consensus" if positions genuinely diverge.
+
+Previous approach (deprecated): Keyword/verb extraction from question text with stemmed matching against answers. Removed after eight iterations revealed fundamental brittleness with clause-heavy binaries, verb conjugation mismatches, and "or not" question structures. The regex-based parser was manufacturing consensus labels from keyword noise rather than detecting actual consensus.
+
+---
+
+## Timeout and Retry Configuration
+
+| Component | Timeout | Retries | Retry Condition |
+|-----------|---------|---------|-----------------|
+| OpenAI (gpt-4.1) | 120s | 3 attempts | Timeout / HTTP errors |
+| Anthropic (claude-opus-4-6) | 120s | 3 attempts | Timeout / HTTP errors |
+| Google (gemini-flash) | 120s (GOOGLE_TIMEOUT) | 2 (GOOGLE_RETRIES) | Non-200 |
+| Mistral (adjudicator) | 60s | 4 attempts | 429 only |
+
+All council model retries use exponential backoff. If all retries fail, the record is written with explicit "ERROR: …" text so the export shows the gap instead of silently omitting the model.
+
+---
+
+## Flaw Labels (Phase 1)
+
+| Label | Definition |
+|-------|------------|
+| frame_shift | Answers a different question than asked |
+| change_of_basis | Replaces key terms with different conceptual frame |
+| hedge | Softens commitment (e.g., "not necessarily", "arguably") |
+| evasion | Avoids committing to the binary choice |
+| contradiction | Internal logical contradiction |
+| asymmetry | Uneven treatment of the two options |
+| institutional_defense | Defaults to institutional framing without mechanism |
+| abstraction | Retreats to abstract principle instead of concrete answer |
+| length_violation | More than one grammatical sentence (clauses/commas allowed) |
+| premise_echo | Restates the prompt's framing without introducing new mechanism or evidence |
+| noncompliant | General noncompliance with prompt constraints |
+
+Premise_echo is backstopped by a deterministic code-side heuristic (high similarity to question text + short length) in addition to Mistral's Phase 1 labeling.
+
+---
+
+## Axis Scoring Details
+
+| Axis | Weight | What It Measures |
+|------|--------|-----------------|
+| structural_comprehension | 1.5 | Does the answer demonstrate understanding of the question's underlying structure? |
+| empirical_grounding | 2.0 | Does the answer cite evidence, mechanisms, or specific references? |
+| asymmetry_detection | 1.5 | Does the answer identify asymmetries or imbalances in the question's framing? |
+| rhetorical_resistance | 1.0 | Does the answer resist rhetorical pressure and maintain a clear position? |
+| frame_control | 0.5 | Does the answer maintain its own frame rather than deferring to the question's? |
+| institutional_guarding | 0.5 | Does the answer appropriately guard against institutional capture or default framing? |
+
+Scoring principles:
+- Axes score independently. A low score on structural_comprehension does not cascade to other axes.
+- Quality is scored blind to compliance. The axis scorer does not penalize for format violations; the compliance multiplier (0.6×) is applied in code.
+- Hollow restatement (premise_echo) is capped at 2 across all axes when detected.
+- Parse failures on axis scoring fall back to neutral score 3 instead of flooring to 1.
+
+---
+
+## Context Isolation
+
+`ACCUMULATE_CONTEXT` environment variable (default 0 / off). When off, each question is sent with a fresh history (system prompt only), preventing prior answers from leaking into subsequent questions. When on, conversation history accumulates across questions within a run (for experimental use only).
+
+---
+
+## Code Versioning
+
+`code_hash` is included in the grouped.json export metadata. Computed as SHA-256 of `council_basic.py`, truncated to 12 characters. Allows verification that code actually changed between runs — if two consecutive runs share a code_hash, the code was identical regardless of run_id.
+
+## Benchmark Dataset Layout
+
+The repository keeps two result corpora:
+
+- `results/legacy/` = historical archive. Pre-benchmark runs, mixed-era exports, and any artifacts generated before the stable benchmark cutover.
+- `results/current/` = active benchmark dataset. New post-fix exports should go here, and aggregate/report generation for the benchmark should target this directory only.
+
+Current benchmark label:
+
+- `benchmark-v1`
+- cutover date: `2026-03-31`
+- defined as the first clean corpus after the consensus preservation fix plus the addition of flip provenance, discriminative power, and consensus stability metrics.
+
+`results/run_id.txt` remains at the top level because it is the live monotonic run counter used by `council_basic.py`.
+
+---
+
+## Run ID
+
+`results/run_id.txt` seeded to 0, auto-increments each run. No environment override. Monotonically increasing across all runs.
+
+---
+
+## Known Model Behaviors
+
+Behavioral patterns observed across runs 25–44 on recurring prompts:
+
+**GPT-4.1**
+- Produces the shortest, most format-compliant answers. Historically rewarded by compliance-focused scoring but penalized once substance scoring was calibrated.
+- Flips on Section 230 (yes → no) in every run tested. Identified as recency/compliance behavior — adopts rebuttal position without citing evidence. Frequently receives uncited flip label.
+- Holds position on settled law (NLRA Section 14(b)) and on positions aligned with majority.
+- Strongest on format compliance, weakest on mechanism depth.
+
+**Claude Opus 4-6**
+- Produces the longest, most mechanism-heavy answers. Historically penalized by format-focused scoring but rewarded once substance scoring was calibrated.
+- Holds position on contested questions where it has strong mechanism (Section 230).
+- Flips on net neutrality (hinders → enhances) in every run tested. Identified as evidence-driven — encounters specific empirical data (2015–2017 ISP capex) in rebuttals and updates accordingly.
+- Phase 1 occasionally flags hedge on original text ("arguably", "contested") but revised text is clean.
+- Strongest on empirical_grounding and structural_comprehension.
+
+**Gemini Flash**
+- Initial answers tend toward hedging or restating both sides. Deliberation typically forces a commitment.
+- Flips frequently on contested topics, sometimes without citing evidence.
+- Early runs showed a "death cascade" where low structural_comprehension zeroed all other axes (removed in run 22).
+- Occasionally produces context contamination (answer to Q1 bleeding into Q2), fixed by context isolation.
+- Quality improved substantially after deliberation was introduced.
+
+### Reverse-Rebuttal A/B (Runs 45–46, security prompts)
+
+- GPT-4.1: Flipped on Q2 (EDR) and Q3 (TPM/TEE) with normal rebuttal order; held both positions when rebuttal order was reversed. Indicates recency-driven flips rather than evidence-driven updates.
+- Claude Opus: Zero flips across both runs; positions held regardless of rebuttal order. Indicates order-independent conviction.
+- Gemini Flash: Flipped on Q3 in normal order; held in reversed order. Susceptible to rebuttal recency, but less consistently than GPT.
+- Consensus shifted purely with rebuttal order (Q3: "improves trust" → "vendor control"), showing council outcome is sensitive to rebuttal sequencing.
+
+**Axis/Score deltas (Q3 TPM/TEE):** GPT dropped 9.5 points when rebuttal order reversed (empirical 4→2, frame 5→3, structural 5→4). Gemini gained 8.5 points (to all 5s) when holding after reversal. Claude stayed at 37.0 on all questions in both runs (all axes 5, +2 conviction every time).
+
+**Conviction bonus caution:** A model that gets +2 in one run and 0 in the reversed run is order-sensitive, not truly convicted. Use reverse-rebuttal to detect this and flag such questions as "order-sensitive" in analysis.
+
+Recommendation: Make reverse-rebuttal a standard diagnostic for any new model added to the council to detect recency/compliance bias vs. evidence-driven updates. Tag questions where conviction bonus changes between normal and reversed runs as order-sensitive.
+
+Recommendation: Make reverse-rebuttal a standard diagnostic for any new model added to the council to detect recency/compliance bias vs. evidence-driven updates.
+
+---
+
+## Prompt Design (SISTM)
+
+Prompts follow the Socratic Inversion Stress Test Method:
+- Embed structural tensions using operative words from the domain.
+- Force a binary choice with mechanism ("Pick one, give the mechanism, no hedging").
+- Forbid hedging, extra sentences, and abstraction.
+- Use the source frame to expose inversions (e.g., asking whether "administering" constitutes "sovereign authority" using the subject's own terminology).
+- Each domain file contains 4 questions.
+
+---
+
+## Web UI
+
+- Mode dropdown: All domain prompt sets plus NATO v3 and Constitutional. Custom mode accepts pasted JSONL.
+- Checkboxes: Enable/disable rebuttal and refine rounds.
+- Downloads: NDJSON (flat), grouped.json (structured), summary.json (lightweight).
+
+---
+
+## Development History
+
+The system was developed iteratively across 44 runs. Key milestones:
+
+| Runs | Milestone |
+|------|-----------|
+| 19–22 | Evaluator calibration: fixed Phase 1 cross-broadcast, removed score cascade, added premise_echo, split compliance from quality, established independent axis scoring |
+| 22 | Evaluator locked as stable. Clean scoring baseline established |
+| 25–29 | Deliberation wired: rebuttal/refine/flip detection, conviction bonus, context isolation, post-flip consensus |
+| 30 | Generalization validated across law, economics, nuclear engineering |
+| 33–34 | Grouped export schema finalized, code_hash added |
+| 34–43 | Consensus parser iterations on softeng domain (ultimately replaced) |
+| 44 | Consensus delegated to Mistral adjudicator. Pipeline complete |
+
+---
+
+## Domain Propagation
+
+Domain is assigned at dispatch time and carried through all artifacts:
+- **Primary**: `--domain` CLI flag or webapp preset key (e.g., `security`, `finance`)
+- **Secondary**: `COUNCIL_DOMAIN` environment variable
+- **Tertiary fallback**: Keyword inference in the aggregator (for legacy runs without explicit domain)
+
+Each question in the output carries a `domain` field. The aggregator trusts explicit domain first and only falls back to `infer_domain()` for legacy files.
+
+---
+
+## Orchestrator
+
+`council_orchestrator.py` runs the full pipeline end-to-end:
+1. Runs council_basic.py with specified domain and prompt file
+2. Persists all four artifact types to `--artifacts-dir`
+3. Regenerates the aggregate from the artifacts directory
+4. Regenerates the HTML report from the aggregate
+
+---
+
+## Cross-Run Analytics
+
+The aggregator (`council_aggregator.py`) computes:
+- Per-model weighted scores (overall and by domain)
+- Flip rates, flip reasons, and **flip provenance** (which model's rebuttal caused each flip)
+- Conviction bonus distribution
+- Axis score averages
+- Strongest/weakest counts
+- Phase 1 flaw frequency
+- **Consensus stability**: For recurring questions, tracks whether consensus holds across runs (STABLE >= 80%, MIXED >= 50%, UNSTABLE < 50%)
+- **Discriminative power**: Per-question score spread across models (HIGH >= 3.0, MED >= 1.5, LOW < 1.5) — identifies which SISTM prompts actually separate model quality vs trivially unanimous
+
+---
+
+## Pending / Future Work
+
+- Multi-round deliberation with convergence check (iterate rebuttal/refine until no flips)
+- Prompt-file metadata (Option B domain tagging inside JSONL for portability)
+- Wider domain sweep with statistical validation across all 24 domain sets

@@ -1,0 +1,4 @@
+{"role": "user", "content": "In one sentence: does a larger context window improve task performance, or does it dilute attention and inject self-noise that the model then overfits? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: does sparse mixture-of-experts routing deliver efficiency, or does expert imbalance force auxiliary routing fixes that erase the gain? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: does RLHF truly align model behavior, or does it overwrite stylistic priors in a way that suppresses factual recall you later evaluate? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: does speculative decoding speed generation without harm, or does drafting from a weaker model inject bias that the main model then launders? Pick one, give the mechanism, no hedging."}

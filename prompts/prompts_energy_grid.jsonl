@@ -1,0 +1,4 @@
+{"role": "user", "content": "In one sentence: does iron-flow storage lower LCOE at duration, or does its lower round-trip efficiency erase the cost advantage against lithium-ion? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: is long-duration storage economics constrained more by chemistry limits or by market products that fail to pay for duration? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: do larger offshore rotors actually cut LCOE, or do installation and vessel bottlenecks hand the savings back? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: does 350 kW EV fast charging accelerate adoption, or does it mostly shift cost and delay into distribution grid upgrades? Pick one, give the mechanism, no hedging."}

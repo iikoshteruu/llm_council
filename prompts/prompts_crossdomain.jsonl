@@ -1,0 +1,30 @@
+{"role": "user", "content": "In one sentence: does algorithmic high-frequency market making improve liquidity or increase systemic fragility? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does mandatory central clearing of standardized derivatives reduce counterparty risk more than it concentrates systemic risk? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: do payment-for-order-flow arrangements improve retail execution quality or degrade price discovery? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: for large language models, does raising context window length generally improve downstream task performance or degrade it due to attention dilution? Pick one and state the mechanism."}
+{"role": "user", "content": "In one sentence: does sparse mixture-of-experts routing improve sample efficiency or introduce instability from expert imbalance? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does RLHF primarily align models or compress stylistic priors that can wash out factual recall? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does commercial fusion via tokamak designs hinge more on magnet technology scaling or on materials survivability? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: will stellarator designs achieve grid parity sooner than tokamaks or lag due to coil complexity? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: in advanced fission, does sodium fast reactor deployment reduce fuel cycle waste more than it increases safety complexity? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: for grid-scale storage, does iron-flow outperform lithium-ion on levelized cost or lag due to lower round-trip efficiency? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does long-duration storage (8–100h) rely more on new chemistries or on market design reforms to be economic? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: for offshore wind, does larger rotor diameter primarily drive LCOE down or create installation bottlenecks that offset gains? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does expanding direct air capture deployment meaningfully reduce net CO2 in the next two decades or mostly shift energy to capture overhead? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: do enhanced rock weathering projects deliver material CO2 removal at scale or are they constrained mainly by logistics and verification? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: are biochar applications more effective for durable carbon removal or for near-term soil productivity gains? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does zero-trust network architecture reduce lateral movement risk more than it increases operational complexity? Pick one and cite the mechanism."}
+{"role": "user", "content": "In one sentence: does pervasive endpoint EDR coverage reduce breach dwell time more than it increases alert fatigue and bypass surface? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does mandatory hardware-backed attestation (e.g., TPM/TEE) improve supply chain trust more than it locks in vendor control? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: for Kubernetes autoscaling, does relying solely on CPU-based HPA improve stability or cause thrash under spiky IO-bound workloads? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does serverless-first architecture improve cost efficiency for bursty workloads or create latency and cold-start penalties that dominate? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: do service meshes improve reliability more than they add operational overhead in medium-sized clusters? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does wide adoption of homomorphic encryption in cloud analytics enhance privacy more than it degrades practical performance? Pick one and state the mechanism."}
+{"role": "user", "content": "In one sentence: does differential privacy at tight epsilon values protect individuals more than it erodes model utility for most enterprise analytics? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does widespread client-side scanning for CSAM enhance safety or primarily erode end-to-end encryption guarantees? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: for EV fast charging, does widespread 350 kW buildout meaningfully accelerate adoption or mainly stress distribution grids? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: do solid-state batteries meaningfully extend EV range and safety or mainly shift challenges to manufacturing yield and dendrite suppression? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does V2G (vehicle-to-grid) provide net grid resilience or primarily accelerate battery degradation with limited grid benefit? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does aggressive microservice decomposition improve developer velocity or slow teams via coordination overhead? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does trunk-based development reduce integration risk more than it limits long-running feature work? Pick one and give the mechanism."}
+{"role": "user", "content": "In one sentence: does pervasive feature flagging improve release safety more than it increases configuration complexity and blast radius? Pick one and give the mechanism."}

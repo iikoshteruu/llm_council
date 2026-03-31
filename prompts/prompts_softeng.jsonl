@@ -1,0 +1,4 @@
+{"role": "user", "content": "In one sentence: does aggressive microservice decomposition improve developer velocity or slow teams via coordination overhead? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: does trunk-based development cut integration risk or chiefly limit long-running feature work? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: does pervasive feature flagging improve release safety or mainly increase configuration complexity and blast radius? Pick one, give the mechanism, no hedging."}
+{"role": "user", "content": "In one sentence: does adopting a single monorepo improve consistency more than it slows builds and tooling, or not? Pick one, give the mechanism, no hedging."}
