@@ -352,7 +352,7 @@ def classify_verdict(q_replies):
     return verdict_type, confidence, basis_method
 
 
-def council_verdict(question_text, q_replies, consensus_text):
+def council_verdict(question_text, q_replies, consensus_text, mode_cfg=None):
     """Synthesize the council's final answer from deliberation results.
 
     Deterministic classification first, then LLM synthesis only when
@@ -361,10 +361,12 @@ def council_verdict(question_text, q_replies, consensus_text):
     sorted_replies = sorted(q_replies, key=lambda x: x.get("weighted_score", 0), reverse=True)
     strongest = sorted_replies[0]
 
-    verdict_type, confidence, basis_method = classify_verdict(q_replies)
+    classifier = (mode_cfg or {}).get("verdict_classifier", classify_verdict)
+    verdict_type, confidence, basis_method = classifier(q_replies)
 
-    # If unstable or contested with low confidence, don't force a verdict
-    if verdict_type == "unstable" or (verdict_type == "contested" and confidence == "low"):
+    # If unstable/inconclusive or contested with low confidence, don't force a verdict
+    no_render_types = {"unstable", "inconclusive"}
+    if verdict_type in no_render_types or (verdict_type == "contested" and confidence == "low"):
         return {
             "verdict": None,
             "verdict_type": verdict_type,
@@ -603,20 +605,24 @@ def parse_adjudicator_json(raw: str):
             pass
     return {"error": "parse_failed", "raw": raw}
 
-def compute_weighted_score(reply):
+def compute_weighted_score(reply, axis_weights=None, compliance_penalty=0.6):
     # deterministic strongest/weakest from axis scores
     scores = reply.get("axis_scores", {})
     get = lambda k: scores.get(k, {}).get("score", 0) if isinstance(scores.get(k, {}), dict) else 0
-    weighted = (
-        get("structural_comprehension") * 1.5 +
-        get("empirical_grounding") * 2.0 +
-        get("asymmetry_detection") * 1.5 +
-        get("rhetorical_resistance") * 1.0 +
-        get("frame_control") * 0.5 +
-        get("institutional_guarding") * 0.5
-    )
+    if axis_weights:
+        weighted = sum(get(axis) * w for axis, w in axis_weights.items())
+    else:
+        # legacy fallback — SISTM weights
+        weighted = (
+            get("structural_comprehension") * 1.5 +
+            get("empirical_grounding") * 2.0 +
+            get("asymmetry_detection") * 1.5 +
+            get("rhetorical_resistance") * 1.0 +
+            get("frame_control") * 0.5 +
+            get("institutional_guarding") * 0.5
+        )
     if not reply.get("compliant", True):
-        weighted *= 0.6  # soften penalty to preserve signal from quality axes
+        weighted *= compliance_penalty
 
     # Conviction bonus/penalty based on flip and original phase1 flaws
     conviction_bonus = 0
@@ -785,9 +791,23 @@ def main():
     parser.add_argument("--file", help="JSONL of user turns; if omitted, read stdin single-turn")
     parser.add_argument("--domain", help="Explicit domain label for this run (e.g. security, nato_v3)")
     parser.add_argument("--artifacts-dir", help="Directory to write raw/grouped/summary/ndjson artifacts")
+    parser.add_argument("--mode", help="Council mode (sistm_stress, code_review)", default=None)
     args = parser.parse_args()
     run_domain = args.domain or os.getenv("COUNCIL_DOMAIN") or None
     artifacts_dir = args.artifacts_dir or os.getenv("COUNCIL_ARTIFACTS_DIR") or None
+
+    # Load mode config — overrides module-level prompts/axes/weights
+    from council_modes import get_mode
+    mode_name = args.mode or os.getenv("COUNCIL_MODE") or "sistm_stress"
+    mode_cfg = get_mode(mode_name)
+
+    # Override globals with mode config
+    global local_system_phase1, local_system_phase2, local_system_axis, local_system_verdict, AXES
+    local_system_phase1 = mode_cfg["phase1_prompt"]
+    local_system_phase2 = mode_cfg["phase2_prompt"]
+    local_system_axis = mode_cfg["axis_prompt"]
+    local_system_verdict = mode_cfg["verdict_prompt"]
+    AXES = mode_cfg["axes"]
 
     if args.file:
         with open(args.file) as f:
@@ -1068,20 +1088,22 @@ def main():
                 for axis_name, axis_desc in AXES:
                     score_obj = score_axis(question_text, r, ann, out_parsed, axis_name, axis_desc)
                     r["axis_scores"][axis_name] = score_obj
-                compute_weighted_score(r)
+                compute_weighted_score(r, axis_weights=mode_cfg.get("axis_weights"), compliance_penalty=mode_cfg.get("compliance_penalty", 0.6))
             # recompute consensus/strongest after revisions (use final weighted scores)
             if q_replies:
                 progress("axis_scoring_start", run_id=run_id, question_index=q_idx + 1, replies=len(q_replies))
                 sorted_replies = sorted(q_replies, key=lambda x: x.get("weighted_score", 0), reverse=True)
                 strongest = sorted_replies[0]["model"]
                 weakest = sorted_replies[-1]["model"]
-                answers = [r.get("text", "") for r in q_replies]
-                consensus_text = majority_consensus(question_text, answers)
-                # fall back to phase2 LLM consensus if majority_consensus failed
-                if not consensus_text and isinstance(out_parsed, dict):
-                    consensus_text = out_parsed.get("consensus")
-                if not consensus_text:
-                    consensus_text = "No consensus label extracted"
+                consensus_text = None
+                if mode_cfg.get("use_consensus", True):
+                    answers = [r.get("text", "") for r in q_replies]
+                    consensus_text = majority_consensus(question_text, answers)
+                    # fall back to phase2 LLM consensus if majority_consensus failed
+                    if not consensus_text and isinstance(out_parsed, dict):
+                        consensus_text = out_parsed.get("consensus")
+                    if not consensus_text:
+                        consensus_text = "No consensus label extracted"
                 q_phase2_final = {
                     "consensus": consensus_text,
                     "strongest": strongest,
@@ -1095,7 +1117,7 @@ def main():
             verdict_obj = None
             if q_replies:
                 progress("verdict_start", run_id=run_id, question_index=q_idx + 1)
-                verdict_obj = council_verdict(question_text, q_replies, q_phase2_final.get("consensus", "") if isinstance(q_phase2_final, dict) else "")
+                verdict_obj = council_verdict(question_text, q_replies, q_phase2_final.get("consensus", "") if isinstance(q_phase2_final, dict) else "", mode_cfg=mode_cfg)
                 if not quiet_json:
                     print(f"{local_model} (verdict q{q_idx+1}/{num_q}):", verdict_obj.get("verdict", "")[:120])
             questions_out.append({
@@ -1126,6 +1148,7 @@ def main():
     result_obj = {
         "run_id": run_id,
         "code_hash": code_version(),
+        "mode": mode_name,
         "domain": run_domain,
         "questions": questions_out,
     }
