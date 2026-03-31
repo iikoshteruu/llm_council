@@ -1,6 +1,6 @@
 # LLM Council
 
-A multi-model deliberation and evaluation pipeline that stress-tests LLM reasoning using the Socratic Inversion Stress Test Method (SISTM).
+A multi-model deliberation and evaluation pipeline that stress-tests LLM reasoning using a proprietary adversarial stress test.
 
 Three LLMs answer each question independently, optionally deliberate through adversarial rebuttal and refinement rounds, and are then evaluated by an independent adjudicator across six quality axes. The pipeline produces a deterministic verdict with confidence classification -- not just analysis, but a final answer that survived deliberation.
 
