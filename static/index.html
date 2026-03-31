@@ -2,411 +2,697 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Council TUI – Web</title>
+  <title>LLM Council</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: "Segoe UI", sans-serif; background:#0f172a; color:#e2e8f0; margin:0; padding:24px; }
-    h1 { margin-top:0; }
-    .panel { background:#111827; border:1px solid #1f2937; border-radius:8px; padding:16px; margin-bottom:16px; }
-    textarea, select, input, button { width:100%; box-sizing:border-box; font-size:14px; border-radius:6px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; padding:10px; }
-    textarea { min-height:140px; resize:vertical; }
-    button { cursor:pointer; font-weight:600; margin-top:8px; }
-    pre { white-space:pre-wrap; word-break:break-word; background:#0b1220; border:1px solid #1f2937; border-radius:6px; padding:12px; }
-    label { font-weight:600; display:block; margin-bottom:6px; }
-    .flex { display:flex; gap:12px; flex-wrap:wrap; }
-    .flex > div { flex:1 1 260px; }
+    :root {
+      --bg-primary: #0f172a;
+      --bg-card: #1e293b;
+      --bg-input: #0f172a;
+      --bg-deep: #0b1220;
+      --border: #334155;
+      --border-light: #1f2937;
+      --text: #e2e8f0;
+      --text-dim: #94a3b8;
+      --text-faint: #64748b;
+      --text-muted: #475569;
+      --accent-purple: #7c3aed;
+      --accent-purple-light: #a78bfa;
+      --accent-cyan: #22d3ee;
+      --accent-green: #34d399;
+      --accent-yellow: #fbbf24;
+      --accent-red: #f87171;
+      --model-claude: #7c3aed;
+      --model-gpt: #059669;
+      --model-gemini: #d97706;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg-primary); color: var(--text); padding: 0; line-height: 1.5; }
+
+    /* Layout */
+    .header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+    .header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+    .header .tag { font-size: 11px; background: var(--accent-purple); color: white; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+    /* Controls */
+    .controls { background: var(--bg-card); border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--border); }
+    .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .controls-row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+    label.ctrl { font-size: 13px; color: var(--text-dim); font-weight: 500; display: block; margin-bottom: 4px; }
+    select, input[type="password"], textarea {
+      width: 100%; font-size: 13px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--bg-input); color: var(--text); padding: 8px 10px; outline: none;
+      transition: border-color 0.15s;
+    }
+    select:focus, input:focus, textarea:focus { border-color: var(--accent-purple); }
+    textarea { min-height: 80px; resize: vertical; font-family: monospace; font-size: 12px; }
+    .checkbox-row { display: flex; gap: 20px; flex-wrap: wrap; }
+    .checkbox-row label { font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 5px; color: var(--text-dim); }
+    .checkbox-row input[type="checkbox"] { accent-color: var(--accent-purple); }
+    .btn-run {
+      background: var(--accent-purple); color: white; border: none; padding: 10px 28px;
+      border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-run:hover { background: #6d28d9; }
+    .btn-run:active { transform: scale(0.98); }
+    .btn-run:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-sm {
+      background: var(--bg-input); color: var(--text-dim); border: 1px solid var(--border);
+      padding: 6px 14px; border-radius: 5px; font-size: 12px; cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .btn-sm:hover { border-color: var(--accent-purple); color: var(--text); }
+
+    /* Progress */
+    .progress-bar { display: none; margin-bottom: 20px; }
+    .progress-bar.active { display: block; }
+    .progress-track { background: var(--bg-card); border-radius: 8px; padding: 16px 20px; border: 1px solid var(--border); }
+    .progress-stages { display: flex; gap: 4px; margin-bottom: 10px; }
+    .progress-stage {
+      flex: 1; height: 4px; border-radius: 2px; background: var(--border);
+      transition: background 0.3s;
+    }
+    .progress-stage.done { background: var(--accent-green); }
+    .progress-stage.active { background: var(--accent-purple); animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .progress-label { font-size: 13px; color: var(--text-dim); }
+    .progress-label strong { color: var(--accent-purple-light); }
+
+    /* Results area */
+    .results-empty { text-align: center; padding: 60px 20px; color: var(--text-faint); }
+    .results-empty .icon { font-size: 40px; margin-bottom: 12px; opacity: 0.3; }
+
+    /* Verdict hero */
+    .verdict-hero {
+      background: linear-gradient(135deg, #1a1040 0%, #1e293b 100%);
+      border: 1px solid var(--accent-purple); border-radius: 10px;
+      padding: 24px; margin-bottom: 20px;
+    }
+    .verdict-hero .verdict-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .verdict-hero .verdict-title { font-size: 14px; font-weight: 600; color: var(--accent-purple-light); text-transform: uppercase; letter-spacing: 0.5px; }
+    .verdict-badge {
+      font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 4px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .verdict-badge.unanimous { background: #064e3b; color: var(--accent-green); }
+    .verdict-badge.majority { background: #164e63; color: var(--accent-cyan); }
+    .verdict-badge.contested { background: #78350f; color: var(--accent-yellow); }
+    .verdict-badge.unstable { background: #7f1d1d; color: var(--accent-red); }
+    .confidence-badge {
+      font-size: 11px; padding: 2px 8px; border-radius: 4px;
+    }
+    .confidence-badge.high { background: #064e3b; color: var(--accent-green); }
+    .confidence-badge.moderate { background: #78350f; color: var(--accent-yellow); }
+    .confidence-badge.low { background: #7f1d1d; color: var(--accent-red); }
+    .verdict-text { font-size: 16px; line-height: 1.6; color: var(--text); margin-bottom: 8px; }
+    .verdict-basis { font-size: 12px; color: var(--text-faint); }
+    .verdict-unresolved { font-size: 15px; color: var(--accent-red); font-style: italic; }
+
+    /* Question cards */
+    .question-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+      margin-bottom: 16px; overflow: hidden;
+    }
+    .question-header {
+      padding: 14px 18px; cursor: pointer; display: flex; justify-content: space-between;
+      align-items: center; transition: background 0.15s;
+    }
+    .question-header:hover { background: rgba(255,255,255,0.02); }
+    .question-header .q-title { font-size: 14px; font-weight: 600; flex: 1; }
+    .question-header .q-meta { display: flex; gap: 8px; align-items: center; }
+    .question-header .chevron {
+      color: var(--text-faint); transition: transform 0.2s; font-size: 14px;
+    }
+    .question-card.open .chevron { transform: rotate(180deg); }
+    .question-body { display: none; border-top: 1px solid var(--border-light); padding: 18px; }
+    .question-card.open .question-body { display: block; }
+
+    /* Consensus bar */
+    .consensus-bar {
+      background: var(--bg-deep); border-radius: 6px; padding: 10px 14px;
+      margin-bottom: 14px; font-size: 13px;
+    }
+    .consensus-bar strong { color: var(--accent-cyan); }
+
+    /* Model reply cards */
+    .reply-card {
+      background: var(--bg-deep); border: 1px solid var(--border-light); border-radius: 8px;
+      padding: 14px; margin-bottom: 10px; position: relative;
+    }
+    .reply-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .reply-model { font-weight: 700; font-size: 14px; }
+    .reply-score { font-size: 24px; font-weight: 800; }
+    .reply-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .reply-badges .tag {
+      font-size: 10px; padding: 2px 7px; border-radius: 3px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .tag-compliant { background: #064e3b; color: var(--accent-green); }
+    .tag-noncompliant { background: #7f1d1d; color: var(--accent-red); }
+    .tag-strongest { background: #164e63; color: var(--accent-cyan); }
+    .tag-weakest { background: #7f1d1d; color: var(--accent-red); }
+    .tag-flip { background: #78350f; color: var(--accent-yellow); }
+    .tag-held { background: #064e3b; color: var(--accent-green); }
+    .tag-conviction { background: #1e1b4b; color: var(--accent-purple-light); }
+    .tag-flaw { background: #451a03; color: #fb923c; }
+    .reply-text { font-size: 14px; line-height: 1.6; margin-bottom: 10px; }
+    .reply-original { font-size: 12px; color: var(--text-faint); margin-bottom: 6px; font-style: italic; }
+
+    /* Axis score bars */
+    .axes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+    .axis-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .axis-label { width: 80px; color: var(--text-dim); text-align: right; flex-shrink: 0; }
+    .axis-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .axis-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
+    .axis-val { width: 16px; font-weight: 700; color: var(--text); }
+
+    /* Phase 1 detail */
+    .phase1-detail { font-size: 12px; color: var(--text-dim); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-light); }
+
+    /* Export bar */
+    .export-bar { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 16px; flex-wrap: wrap; }
+
+    /* Error */
+    .error-box { background: #7f1d1d; border: 1px solid var(--accent-red); border-radius: 8px; padding: 16px; color: var(--accent-red); }
+    .error-box pre { background: transparent; border: none; padding: 0; color: inherit; font-size: 12px; margin-top: 8px; }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      .controls-grid { grid-template-columns: 1fr; }
+      .axes-grid { grid-template-columns: 1fr; }
+      .progress-stages { flex-wrap: wrap; }
+    }
   </style>
 </head>
 <body>
-  <h1>Council Runner (Web)</h1>
-    <div class="panel">
-      <div class="flex">
+  <div class="header">
+    <h1>LLM Council</h1>
+    <span class="tag">SISTM</span>
+  </div>
+
+  <div class="container">
+    <!-- Controls -->
+    <div class="controls">
+      <div class="controls-grid">
         <div>
-          <label for="mode">Mode</label>
+          <label class="ctrl" for="mode">Domain</label>
           <select id="mode">
-            <option value="nato_v3" selected>NATO SISTM v3 (built-in)</option>
-            <option value="constitutional">Constitutional (federalism)</option>
-            <option value="finance">Finance (SISTM)</option>
-            <option value="ml_systems">ML Systems (SISTM)</option>
-            <option value="energy_nuclear">Energy – Nuclear (SISTM)</option>
-            <option value="energy_grid">Energy – Grid/Storage (SISTM)</option>
-            <option value="carbon">Carbon Removal (SISTM)</option>
-            <option value="privacy">Privacy/Crypto (SISTM)</option>
-            <option value="bio_med">Bio/Med (SISTM)</option>
-            <option value="security">Security (SISTM)</option>
-            <option value="cloud">Cloud/K8s (SISTM)</option>
-            <option value="softeng">Software Engineering (SISTM)</option>
-            <option value="international_law">International Law (SISTM)</option>
-            <option value="trade_sanctions">Trade/Sanctions (SISTM)</option>
-            <option value="criminal_justice">Criminal Justice (SISTM)</option>
-            <option value="ai_governance">AI Governance (SISTM)</option>
-            <option value="maritime_space">Maritime/Space (SISTM)</option>
-            <option value="labor_automation">Labor/Automation (SISTM)</option>
-            <option value="public_health">Public Health (SISTM)</option>
-            <option value="education">Education Policy (SISTM)</option>
-            <option value="housing">Housing/Land Use (SISTM)</option>
-            <option value="surveillance">Surveillance/Intelligence (SISTM)</option>
-            <option value="monetary_policy">Monetary Policy (SISTM)</option>
-            <option value="food_agriculture">Food/Agriculture (SISTM)</option>
-            <option value="custom">Custom JSONL (provide below)</option>
+            <option value="nato_v3" selected>NATO SISTM v3</option>
+            <option value="constitutional">Constitutional</option>
+            <option value="finance">Finance</option>
+            <option value="ml_systems">ML Systems</option>
+            <option value="energy_nuclear">Energy – Nuclear</option>
+            <option value="energy_grid">Energy – Grid/Storage</option>
+            <option value="carbon">Carbon Removal</option>
+            <option value="privacy">Privacy/Crypto</option>
+            <option value="bio_med">Bio/Med</option>
+            <option value="security">Security</option>
+            <option value="cloud">Cloud/K8s</option>
+            <option value="softeng">Software Engineering</option>
+            <option value="international_law">International Law</option>
+            <option value="trade_sanctions">Trade/Sanctions</option>
+            <option value="criminal_justice">Criminal Justice</option>
+            <option value="ai_governance">AI Governance</option>
+            <option value="maritime_space">Maritime/Space</option>
+            <option value="labor_automation">Labor/Automation</option>
+            <option value="public_health">Public Health</option>
+            <option value="education">Education Policy</option>
+            <option value="housing">Housing/Land Use</option>
+            <option value="surveillance">Surveillance/Intel</option>
+            <option value="monetary_policy">Monetary Policy</option>
+            <option value="food_agriculture">Food/Agriculture</option>
+            <option value="custom">Custom JSONL</option>
           </select>
         </div>
         <div>
-          <label for="apiKey">API key (optional)</label>
-          <input id="apiKey" type="password" placeholder="X-API-Key for /api/run">
+          <label class="ctrl" for="apiKey">API Key (optional)</label>
+          <input id="apiKey" type="password" placeholder="X-API-Key">
         </div>
       </div>
-      <div class="flex">
-        <div>
-          <label><input type="checkbox" id="rebuttalChk"> Run rebuttal round</label>
-        </div>
-        <div>
-          <label><input type="checkbox" id="refineChk"> Run refine/flip round (requires rebuttal)</label>
-        </div>
-        <div>
-          <label><input type="checkbox" id="reverseRebChk"> Reverse rebuttal order</label>
-        </div>
+      <div class="checkbox-row">
+        <label><input type="checkbox" id="rebuttalChk"> Rebuttal</label>
+        <label><input type="checkbox" id="refineChk"> Refine / Flip</label>
+        <label><input type="checkbox" id="reverseRebChk"> Reverse order</label>
       </div>
-      <label for="jsonl">Custom JSONL (optional)</label>
-      <textarea id="jsonl" placeholder='{"role":"user","content":"Question text..."}'></textarea>
-      <button id="runBtn">Run Council</button>
+      <div style="margin-top:8px;">
+        <label class="ctrl" for="jsonl">Custom JSONL</label>
+        <textarea id="jsonl" placeholder='{"role":"user","content":"In one sentence: ..."}'></textarea>
+      </div>
+      <div style="margin-top:12px; display:flex; align-items:center; gap:12px;">
+        <button class="btn-run" id="runBtn">Run Council</button>
+        <span id="runStatus" style="font-size:12px; color:var(--text-faint);"></span>
+      </div>
     </div>
 
-    <div class="panel">
-      <div class="flex">
-        <div><label>Result</label></div>
-        <div style="text-align:right;">
-          <button id="exportBtn" style="width:auto;">Download NDJSON (per reply)</button>
-          <button id="exportGroupedBtn" style="width:auto;">Download grouped.json</button>
-          <button id="exportSummaryBtn" style="width:auto;">Download summary.json</button>
-        </div>
+    <!-- Progress -->
+    <div class="progress-bar" id="progressBar">
+      <div class="progress-track">
+        <div class="progress-stages" id="progressStages"></div>
+        <div class="progress-label" id="progressLabel">Initializing...</div>
       </div>
-      <div id="output">Waiting...</div>
     </div>
 
-  <script>
-    const runBtn = document.getElementById('runBtn');
-    const modeSel = document.getElementById('mode');
-    const jsonlArea = document.getElementById('jsonl');
-    const rebuttalChk = document.getElementById('rebuttalChk');
-    const refineChk = document.getElementById('refineChk');
-    const reverseRebChk = document.getElementById('reverseRebChk');
-    const out = document.getElementById('output');
-    const apiKeyInput = document.getElementById('apiKey');
-    const exportBtn = document.getElementById('exportBtn');
-    const exportGroupedBtn = document.getElementById('exportGroupedBtn');
-    const exportSummaryBtn = document.getElementById('exportSummaryBtn');
-    let lastPayload = null;
+    <!-- Export bar -->
+    <div class="export-bar" id="exportBar" style="display:none;">
+      <button class="btn-sm" id="exportNdjsonBtn">NDJSON</button>
+      <button class="btn-sm" id="exportGroupedBtn">Grouped JSON</button>
+      <button class="btn-sm" id="exportSummaryBtn">Summary JSON</button>
+    </div>
 
-    function authHeaders() {
-      return apiKeyInput.value.trim() ? { 'X-API-Key': apiKeyInput.value.trim() } : {};
-    }
+    <!-- Results -->
+    <div id="results">
+      <div class="results-empty">
+        <div class="icon">&#9878;</div>
+        <div>Select a domain and run the council</div>
+      </div>
+    </div>
+  </div>
 
-    function downloadBackendArtifact(kind, fallback) {
-      const artifacts = lastPayload && lastPayload.data && lastPayload.data.artifacts;
-      const relpath = artifacts && artifacts[kind];
-      if (!relpath) {
-        if (typeof fallback === 'function') fallback();
-        return;
-      }
-      const url = `/api/artifact?path=${encodeURIComponent(relpath)}`;
-      fetch(url, { headers: authHeaders() })
-        .then(async res => {
-          if (!res.ok) throw new Error(`artifact download failed (${res.status})`);
-          const blob = await res.blob();
-          const link = document.createElement('a');
-          link.href = URL.createObjectURL(blob);
-          link.download = relpath.split('/').pop();
-          link.click();
-          URL.revokeObjectURL(link.href);
-        })
-        .catch(err => {
-          out.textContent = 'Error: ' + err;
-        });
-    }
+<script>
+const MODEL_COLORS = {
+  'gpt-4.1': 'var(--model-gpt)',
+  'claude-opus-4-6': 'var(--model-claude)',
+  'models/gemini-flash-latest': 'var(--model-gemini)',
+  'gemini-flash-latest': 'var(--model-gemini)',
+};
+const MODEL_SHORT = {
+  'gpt-4.1': 'GPT-4.1',
+  'claude-opus-4-6': 'Claude Opus',
+  'models/gemini-flash-latest': 'Gemini Flash',
+  'gemini-flash-latest': 'Gemini Flash',
+};
+const AXIS_SHORT = {
+  structural_comprehension: 'Structural',
+  empirical_grounding: 'Empirical',
+  asymmetry_detection: 'Asymmetry',
+  rhetorical_resistance: 'Rhetorical',
+  frame_control: 'Frame',
+  institutional_guarding: 'Institutional',
+};
+const AXIS_COLORS = {
+  structural_comprehension: '#8b5cf6',
+  empirical_grounding: '#06b6d4',
+  asymmetry_detection: '#f59e0b',
+  rhetorical_resistance: '#ec4899',
+  frame_control: '#10b981',
+  institutional_guarding: '#6366f1',
+};
 
-    runBtn.onclick = async () => {
-      out.textContent = 'Running...';
-      const mode = modeSel.value;
-      const jsonl = jsonlArea.value.trim();
-      const body = { mode };
-      body.rebuttal = rebuttalChk.checked;
-      body.refine = refineChk.checked;
-      body.reverse_rebuttal = reverseRebChk.checked;
-      if (mode === 'custom') {
-        if (!jsonl) {
-          out.textContent = 'Error: custom mode requires JSONL input.';
-          return;
-        }
-        body.jsonl = jsonl;
-      }
+const PIPELINE_STAGES = [
+  'Council Generation', 'Rebuttal', 'Refine', 'Phase 1',
+  'Phase 2', 'Axis Scoring', 'Verdict'
+];
+
+let lastPayload = null;
+let sseSource = null;
+
+const $ = id => document.getElementById(id);
+function authHeaders() {
+  const k = $('apiKey').value.trim();
+  return k ? { 'X-API-Key': k } : {};
+}
+
+function modelColor(name) { return MODEL_COLORS[name] || '#94a3b8'; }
+function modelShort(name) { return MODEL_SHORT[name] || name.split('/').pop(); }
+
+// ── Progress ──
+
+function showProgress(stages) {
+  const bar = $('progressBar');
+  const stagesEl = $('progressStages');
+  bar.classList.add('active');
+  stagesEl.innerHTML = '';
+  stages.forEach((s, i) => {
+    const el = document.createElement('div');
+    el.className = 'progress-stage';
+    el.title = s;
+    stagesEl.appendChild(el);
+  });
+}
+
+function updateProgress(stageIndex, label) {
+  const stages = $('progressStages').children;
+  for (let i = 0; i < stages.length; i++) {
+    stages[i].className = 'progress-stage' + (i < stageIndex ? ' done' : (i === stageIndex ? ' active' : ''));
+  }
+  $('progressLabel').innerHTML = label;
+}
+
+function hideProgress() {
+  $('progressBar').classList.remove('active');
+}
+
+// ── SSE listener (wired to Codex's GET /api/run/stream) ──
+
+function connectSSE(runId) {
+  if (sseSource) sseSource.close();
+  try {
+    sseSource = new EventSource(`/api/run/stream?run_id=${runId}`);
+    sseSource.onmessage = (e) => {
       try {
-        const res = await fetch('/api/run', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...authHeaders()
-          },
-          body: JSON.stringify(body)
-        });
-        const payload = await res.json();
-        renderResult(payload);
-      } catch (e) {
-        out.textContent = 'Error: ' + e;
-      }
+        const d = JSON.parse(e.data);
+        if (d.stage_index !== undefined) {
+          updateProgress(d.stage_index, `<strong>${d.stage || ''}</strong> ${d.detail || ''}`);
+        }
+        if (d.done) {
+          sseSource.close();
+          sseSource = null;
+        }
+      } catch (err) {}
     };
+    sseSource.onerror = () => { if (sseSource) { sseSource.close(); sseSource = null; } };
+  } catch (err) {
+    // SSE not available yet; progress will just show running
+  }
+}
 
-    exportBtn.onclick = () => {
-      downloadBackendArtifact('ndjson', () => {
-      if (!lastPayload || !lastPayload.data || !lastPayload.data.questions) return;
-      const lines = [];
-      lastPayload.data.questions.forEach(q => {
-          (q.replies || []).forEach(r => {
-            lines.push(JSON.stringify({
-              question_index: q.question_index,
-              question_text: q.question_text,
-              model: r.model,
-              text: r.text,
-              original_text: r.original_text || null,
-              revised_text: r.revised_text || null,
-              rebuttal_text: r.rebuttal_text || null,
-              rebuttal_target: r.rebuttal_target || null,
-              flip: r.flip || null,
-              compliant: r.compliant,
-              conviction_bonus: r.conviction_bonus ?? null,
-              weighted_score: r.weighted_score,
-              phase1: r.phase1 || null,
-              axis_scores: r.axis_scores || null,
-              phase2_consensus: q.phase2 ? q.phase2.consensus : null,
-            phase2_strongest: q.phase2 ? q.phase2.strongest : null,
-            phase2_weakest: q.phase2 ? q.phase2.weakest : null,
-            strongest_weighted: q.strongest_weighted || null,
-            weakest_weighted: q.weakest_weighted || null
-          }));
-        });
-      });
-      const blob = new Blob([lines.join('\n') + '\n'], {type: 'application/x-ndjson'});
-      const url = URL.createObjectURL(blob);
+// ── Run ──
+
+$('runBtn').onclick = async () => {
+  const btn = $('runBtn');
+  btn.disabled = true;
+  $('runStatus').textContent = '';
+  $('results').innerHTML = '';
+  $('exportBar').style.display = 'none';
+
+  const mode = $('mode').value;
+  const body = {
+    mode,
+    rebuttal: $('rebuttalChk').checked,
+    refine: $('refineChk').checked,
+    reverse_rebuttal: $('reverseRebChk').checked,
+  };
+  if (mode === 'custom') {
+    const jsonl = $('jsonl').value.trim();
+    if (!jsonl) { $('results').innerHTML = '<div class="error-box">Custom mode requires JSONL input.</div>'; btn.disabled = false; return; }
+    body.jsonl = jsonl;
+  }
+
+  // Determine which stages to show
+  const stages = ['Generation'];
+  if (body.rebuttal) stages.push('Rebuttal');
+  if (body.refine) stages.push('Refine');
+  stages.push('Phase 1', 'Phase 2', 'Scoring', 'Verdict');
+  showProgress(stages);
+  updateProgress(0, '<strong>Council Generation</strong> — querying models...');
+
+  const startTime = Date.now();
+  const timer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    $('runStatus').textContent = `${m}:${s.toString().padStart(2, '0')}`;
+  }, 1000);
+
+  try {
+    const res = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(body),
+    });
+    const payload = await res.json();
+    lastPayload = payload;
+    clearInterval(timer);
+    hideProgress();
+    $('runStatus').textContent = '';
+
+    if (payload.returncode !== 0 || !payload.data || payload.data.error) {
+      $('results').innerHTML = `<div class="error-box"><strong>Run failed</strong><pre>${payload.stderr || payload.data?.error || 'Unknown error'}</pre></div>`;
+    } else {
+      renderResults(payload.data);
+      $('exportBar').style.display = 'flex';
+    }
+  } catch (e) {
+    clearInterval(timer);
+    hideProgress();
+    $('results').innerHTML = `<div class="error-box"><strong>Request failed</strong><pre>${e}</pre></div>`;
+  }
+  btn.disabled = false;
+};
+
+// ── Render ──
+
+function renderResults(data) {
+  const container = $('results');
+  container.innerHTML = '';
+
+  if (!data.questions || !data.questions.length) {
+    container.innerHTML = '<div class="results-empty">No results returned.</div>';
+    return;
+  }
+
+  // Render each question
+  data.questions.forEach((q, qi) => {
+    // Verdict hero — show for each question
+    const verdict = q.verdict;
+    if (verdict) {
+      container.appendChild(renderVerdict(verdict, qi));
+    }
+
+    // Question card
+    const card = document.createElement('div');
+    card.className = 'question-card' + (qi === 0 ? ' open' : '');
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'question-header';
+    const strongest = q.strongest_weighted;
+    const weakest = q.weakest_weighted;
+    header.innerHTML = `
+      <div class="q-title">Q${q.question_index}: ${truncate(q.question_text, 120)}</div>
+      <div class="q-meta">
+        ${strongest ? `<span style="color:${modelColor(strongest)};font-size:12px;font-weight:600;">${modelShort(strongest)}</span>` : ''}
+        <span class="chevron">&#9660;</span>
+      </div>`;
+    header.onclick = () => card.classList.toggle('open');
+    card.appendChild(header);
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'question-body';
+
+    // Consensus
+    const consensus = q.phase2?.consensus;
+    if (consensus) {
+      const cb = document.createElement('div');
+      cb.className = 'consensus-bar';
+      cb.innerHTML = `<strong>Consensus:</strong> ${consensus}`;
+      body.appendChild(cb);
+    }
+
+    // Sort replies by weighted score
+    const replies = [...(q.replies || [])].sort((a, b) => (b.weighted_score || 0) - (a.weighted_score || 0));
+
+    replies.forEach(r => {
+      body.appendChild(renderReply(r, strongest, weakest));
+    });
+
+    card.appendChild(body);
+    container.appendChild(card);
+  });
+}
+
+function renderVerdict(v, qi) {
+  const el = document.createElement('div');
+  el.className = 'verdict-hero';
+
+  const vtype = v.verdict_type || 'unknown';
+  const conf = v.confidence || 'low';
+
+  let inner = `
+    <div class="verdict-header">
+      <span class="verdict-title">Council Verdict — Q${qi + 1}</span>
+      <span class="verdict-badge ${vtype}">${vtype}</span>
+      <span class="confidence-badge ${conf}">${conf} confidence</span>
+    </div>`;
+
+  if (v.verdict) {
+    inner += `<div class="verdict-text">${v.verdict}</div>`;
+    inner += `<div class="verdict-basis">Basis: ${v.basis || ''} &middot; ${v.reason || ''}</div>`;
+  } else {
+    inner += `<div class="verdict-unresolved">${v.reason || 'Insufficiently stable to render confidently'}</div>`;
+  }
+  el.innerHTML = inner;
+  return el;
+}
+
+function renderReply(r, strongest, weakest) {
+  const card = document.createElement('div');
+  card.className = 'reply-card';
+  const color = modelColor(r.model);
+  const score = r.weighted_score || 0;
+  const isStrongest = r.model === strongest;
+  const isWeakest = r.model === weakest;
+  const flip = (r.flip && typeof r.flip === 'object') ? r.flip : { flip: false };
+  const flipped = flip.flip || (typeof r.flip === 'boolean' && r.flip);
+  const flipReason = flip.flip_reason || r.flip_reason || '';
+  const flipSource = flip.flip_source || r.flip_source || '';
+
+  // Header with model name and score
+  const header = document.createElement('div');
+  header.className = 'reply-header';
+  header.innerHTML = `
+    <span class="reply-model" style="color:${color}">${modelShort(r.model)}</span>
+    <span class="reply-score" style="color:${color}">${score.toFixed(1)}</span>`;
+  card.appendChild(header);
+
+  // Badges
+  const badges = document.createElement('div');
+  badges.className = 'reply-badges';
+  badges.innerHTML =
+    `<span class="tag ${r.compliant ? 'tag-compliant' : 'tag-noncompliant'}">${r.compliant ? 'Compliant' : 'Noncompliant'}</span>` +
+    (isStrongest ? '<span class="tag tag-strongest">Strongest</span>' : '') +
+    (isWeakest ? '<span class="tag tag-weakest">Weakest</span>' : '') +
+    (flipped ? `<span class="tag tag-flip">Flip: ${flipReason}${flipSource ? ' ← ' + modelShort(flipSource) : ''}</span>` : '<span class="tag tag-held">Held</span>') +
+    (r.conviction_bonus !== null && r.conviction_bonus !== undefined ? `<span class="tag tag-conviction">Conv: ${r.conviction_bonus > 0 ? '+' : ''}${r.conviction_bonus}</span>` : '');
+
+  // Phase 1 flaws
+  const phase1 = r.phase1 || [];
+  (Array.isArray(phase1) ? phase1 : [phase1]).forEach(p => {
+    if (p && p.flaw_label) {
+      badges.innerHTML += `<span class="tag tag-flaw">${p.flaw_label}</span>`;
+    }
+  });
+  card.appendChild(badges);
+
+  // Original text (if different from final)
+  if (r.original_text && r.original_text !== r.text) {
+    const orig = document.createElement('div');
+    orig.className = 'reply-original';
+    orig.textContent = 'Original: ' + r.original_text;
+    card.appendChild(orig);
+  }
+
+  // Reply text
+  const text = document.createElement('div');
+  text.className = 'reply-text';
+  text.textContent = r.text || '';
+  card.appendChild(text);
+
+  // Axis scores
+  const axes = r.axis_scores || r.axes || {};
+  if (Object.keys(axes).length) {
+    const grid = document.createElement('div');
+    grid.className = 'axes-grid';
+    for (const [axis, obj] of Object.entries(axes)) {
+      if (!obj || obj.score === undefined) continue;
+      const pct = (obj.score / 5) * 100;
+      const axColor = AXIS_COLORS[axis] || '#94a3b8';
+      grid.innerHTML += `
+        <div class="axis-row">
+          <span class="axis-label">${AXIS_SHORT[axis] || axis}</span>
+          <div class="axis-track"><div class="axis-fill" style="width:${pct}%;background:${axColor}"></div></div>
+          <span class="axis-val">${obj.score}</span>
+        </div>`;
+    }
+    card.appendChild(grid);
+  }
+
+  // Phase 1 detail
+  const p1 = (Array.isArray(phase1) ? phase1 : [phase1]).find(p => p && p.model === r.model);
+  if (p1 && (p1.direct_answer || p1.flaw_reason)) {
+    const detail = document.createElement('div');
+    detail.className = 'phase1-detail';
+    detail.textContent = `Direct: ${p1.direct_answer || '—'} | ${p1.flaw_reason || 'No flaw'}`;
+    card.appendChild(detail);
+  }
+
+  return card;
+}
+
+// ── Exports ──
+
+function downloadBackendArtifact(kind, fallbackFn) {
+  const artifacts = lastPayload?.data?.artifacts;
+  const relpath = artifacts?.[kind];
+  if (!relpath) { if (fallbackFn) fallbackFn(); return; }
+  fetch(`/api/artifact?path=${encodeURIComponent(relpath)}`, { headers: authHeaders() })
+    .then(async res => {
+      if (!res.ok) throw new Error(`${res.status}`);
+      const blob = await res.blob();
       const a = document.createElement('a');
-      a.href = url;
-      a.download = 'council_replies.ndjson';
+      a.href = URL.createObjectURL(blob);
+      a.download = relpath.split('/').pop();
       a.click();
-      URL.revokeObjectURL(url);
-      });
-    };
+      URL.revokeObjectURL(a.href);
+    })
+    .catch(() => { if (fallbackFn) fallbackFn(); });
+}
 
-    exportSummaryBtn.onclick = () => {
-      downloadBackendArtifact('summary', () => {
-      if (!lastPayload || !lastPayload.data || !lastPayload.data.summary) return;
-      const blob = new Blob([JSON.stringify(lastPayload.data.summary, null, 2)], {type: 'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'summary.json';
-      a.click();
-      URL.revokeObjectURL(url);
-      });
-    };
+function downloadBlob(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 
-    exportGroupedBtn.onclick = () => {
-      downloadBackendArtifact('grouped', () => {
-      if (!lastPayload || !lastPayload.data || !lastPayload.data.questions) return;
-      const run = {
-        run_id: lastPayload.data.run_id || null,
-        code_hash: lastPayload.data.code_hash || null,
-        timestamp: new Date().toISOString(),
-        questions: []
+$('exportNdjsonBtn').onclick = () => {
+  downloadBackendArtifact('ndjson', () => {
+    if (!lastPayload?.data?.questions) return;
+    const lines = [];
+    lastPayload.data.questions.forEach(q => {
+      (q.replies || []).forEach(r => {
+        lines.push(JSON.stringify({
+          question_index: q.question_index, question_text: q.question_text,
+          model: r.model, text: r.text, original_text: r.original_text || null,
+          flip: r.flip || null, compliant: r.compliant, conviction_bonus: r.conviction_bonus ?? null,
+          weighted_score: r.weighted_score, phase1: r.phase1 || null, axis_scores: r.axis_scores || null,
+          phase2_consensus: q.phase2?.consensus || null,
+          strongest_weighted: q.strongest_weighted || null, weakest_weighted: q.weakest_weighted || null,
+        }));
+      });
+    });
+    downloadBlob(lines.join('\n') + '\n', 'council_replies.ndjson', 'application/x-ndjson');
+  });
+};
+
+$('exportSummaryBtn').onclick = () => {
+  downloadBackendArtifact('summary', () => {
+    if (!lastPayload?.data?.summary) return;
+    downloadBlob(JSON.stringify(lastPayload.data.summary, null, 2), 'summary.json', 'application/json');
+  });
+};
+
+$('exportGroupedBtn').onclick = () => {
+  downloadBackendArtifact('grouped', () => {
+    if (!lastPayload?.data?.questions) return;
+    const run = {
+      run_id: lastPayload.data.run_id || null, code_hash: lastPayload.data.code_hash || null,
+      timestamp: new Date().toISOString(), questions: []
+    };
+    lastPayload.data.questions.forEach(q => {
+      const qObj = {
+        index: q.question_index, text: q.question_text,
+        consensus: q.phase2?.consensus || null,
+        strongest_weighted: q.strongest_weighted || null, weakest_weighted: q.weakest_weighted || null,
+        verdict: q.verdict || null, replies: []
       };
-      (lastPayload.data.questions || []).forEach(q => {
-        const qObj = {
-          index: q.question_index,
-          text: q.question_text,
-          consensus: q.phase2 ? q.phase2.consensus : null,
-          strongest_weighted: q.strongest_weighted || null,
-          weakest_weighted: q.weakest_weighted || null,
-          strongest: q.phase2 ? q.phase2.strongest : null,
-          weakest: q.phase2 ? q.phase2.weakest : null,
-          verdict: q.verdict ? q.verdict.verdict : null,
-          verdict_type: q.verdict ? q.verdict.verdict_type : null,
-          verdict_confidence: q.verdict ? q.verdict.confidence : null,
-          verdict_basis: q.verdict ? q.verdict.basis : null,
-          verdict_reason: q.verdict ? q.verdict.reason : null,
-          replies: []
-        };
-        (q.replies || []).forEach(r => {
-          const flip = (r.flip && typeof r.flip === 'object') ? r.flip : { flip: r.flip || false, flip_reason: null, flip_source: null };
-          qObj.replies.push({
-            model: r.model,
-            original: r.original_text || null,
-            final: r.text || null,
-            rebuttal: r.rebuttal_text || null,
-            rebuttal_target: r.rebuttal_target || null,
-            flip: !!flip.flip,
-            flip_reason: flip.flip_reason || null,
-            flip_source: flip.flip_source || null,
-            compliant: r.compliant,
-            conviction_bonus: r.conviction_bonus !== undefined ? r.conviction_bonus : null,
-            weighted_score: r.weighted_score,
-            phase1: r.phase1 || null,
-            axes: r.axis_scores || null
-          });
+      (q.replies || []).forEach(r => {
+        const flip = (r.flip && typeof r.flip === 'object') ? r.flip : { flip: r.flip || false };
+        qObj.replies.push({
+          model: r.model, original: r.original_text || null, final: r.text || null,
+          flip: !!flip.flip, flip_reason: flip.flip_reason || null, flip_source: flip.flip_source || null,
+          compliant: r.compliant, conviction_bonus: r.conviction_bonus ?? null,
+          weighted_score: r.weighted_score, phase1: r.phase1 || null, axes: r.axis_scores || null,
         });
-        run.questions.push(qObj);
       });
-      const blob = new Blob([JSON.stringify(run, null, 2)], {type: 'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'grouped.json';
-      a.click();
-      URL.revokeObjectURL(url);
-      });
-    };
+      run.questions.push(qObj);
+    });
+    downloadBlob(JSON.stringify(run, null, 2), 'grouped.json', 'application/json');
+  });
+};
 
-    function badge(text, ok) {
-      const span = document.createElement('span');
-      span.textContent = text;
-      span.style.padding = '2px 6px';
-      span.style.borderRadius = '4px';
-      span.style.fontSize = '12px';
-      span.style.marginLeft = '6px';
-      span.style.background = ok ? '#065f46' : '#7f1d1d';
-      span.style.color = '#e2e8f0';
-      return span;
-    }
+// ── Util ──
 
-    function renderResult(payload) {
-      const { returncode, data, stderr } = payload;
-      lastPayload = payload;
-      out.innerHTML = '';
-      const rc = document.createElement('div');
-      rc.textContent = `Return code: ${returncode}`;
-      out.appendChild(rc);
-      if (!data || data.error) {
-        const pre = document.createElement('pre');
-        pre.textContent = (data && data.stdout) || `Error: ${data ? data.error : 'unknown'}`;
-        out.appendChild(pre);
-        if (stderr) {
-          const err = document.createElement('pre');
-          err.textContent = stderr;
-          out.appendChild(err);
-        }
-        return;
-      }
+function truncate(str, len) {
+  if (!str) return '';
+  return str.length > len ? str.slice(0, len) + '...' : str;
+}
 
-      if (!data.questions) {
-        const pre = document.createElement('pre');
-        pre.textContent = JSON.stringify(data, null, 2);
-        out.appendChild(pre);
-        return;
-      }
-
-      data.questions.forEach(q => {
-        const panel = document.createElement('div');
-        panel.className = 'panel';
-        const h = document.createElement('h3');
-        h.textContent = `Question ${q.question_index}: ${q.question_text}`;
-        panel.appendChild(h);
-
-        // replies
-        q.replies?.forEach(r => {
-          const box = document.createElement('div');
-          box.style.border = '1px solid #1f2937';
-          box.style.borderRadius = '6px';
-          box.style.padding = '10px';
-          box.style.marginBottom = '8px';
-          const title = document.createElement('div');
-          title.textContent = r.model;
-          title.appendChild(badge(r.compliant ? 'COMPLIANT' : 'NONCOMPLIANT', r.compliant));
-          box.appendChild(title);
-          const body = document.createElement('div');
-          body.textContent = r.text;
-          body.style.marginTop = '6px';
-          box.appendChild(body);
-          // phase1 annotation if available
-          if (q.phase1 && q.phase1.replies && Array.isArray(q.phase1.replies)) {
-            const ann = q.phase1.replies.find(x => x.model === r.model);
-            if (ann) {
-              const annDiv = document.createElement('div');
-              annDiv.style.fontSize = '12px';
-              annDiv.style.marginTop = '4px';
-              annDiv.textContent = `Direct: ${ann.direct_answer || ''} | Flaw: ${ann.flaw_label || ''} ${ann.flaw_reason ? '– ' + ann.flaw_reason : ''}`;
-              box.appendChild(annDiv);
-            }
-          }
-          // axis scores if available
-          if (r.axis_scores) {
-            const table = document.createElement('table');
-            table.style.fontSize = '12px';
-            table.style.marginTop = '6px';
-            table.style.width = '100%';
-            for (const [axis, obj] of Object.entries(r.axis_scores)) {
-              const tr = document.createElement('tr');
-              const td1 = document.createElement('td');
-              td1.textContent = axis;
-              const td2 = document.createElement('td');
-              td2.textContent = obj.score !== undefined ? obj.score : '';
-              td2.style.textAlign = 'right';
-              const td3 = document.createElement('td');
-              td3.textContent = obj.reason || '';
-              tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
-              table.appendChild(tr);
-            }
-            box.appendChild(table);
-          }
-          panel.appendChild(box);
-        });
-
-        // phase2
-        if (q.phase2 && !q.phase2.error) {
-          const p2 = document.createElement('div');
-          p2.style.borderTop = '1px solid #1f2937';
-          p2.style.paddingTop = '8px';
-          const strongestW = q.strongest_weighted || '(weighted n/a)';
-          const weakestW = q.weakest_weighted || '(weighted n/a)';
-          p2.innerHTML = `<strong>Consensus:</strong> ${q.phase2.consensus || ''}<br>
-                          <strong>Strongest (weighted):</strong> ${strongestW}<br>
-                          <strong>Weakest (weighted):</strong> ${weakestW}<br>
-                          <em>Adjudicator (text only): strongest=${q.phase2.strongest || ''}, weakest=${q.phase2.weakest || ''}, differences=${q.phase2.differences || ''}</em>`;
-          panel.appendChild(p2);
-        }
-        // Council verdict
-        if (q.verdict) {
-          const v = q.verdict;
-          const vd = document.createElement('div');
-          vd.style.borderTop = '2px solid #7c3aed';
-          vd.style.paddingTop = '10px';
-          vd.style.marginTop = '8px';
-          vd.style.background = '#1a1333';
-          vd.style.padding = '12px';
-          vd.style.borderRadius = '6px';
-          const typeColors = { unanimous: '#34d399', majority: '#22d3ee', contested: '#fbbf24', unstable: '#f87171' };
-          const confColors = { high: '#34d399', moderate: '#fbbf24', low: '#f87171' };
-          const typeColor = typeColors[v.verdict_type] || '#94a3b8';
-          const confColor = confColors[v.confidence] || '#94a3b8';
-          if (v.verdict) {
-            vd.innerHTML = `<strong style="color:#a78bfa;">Council Verdict</strong>
-              <span style="color:${typeColor};font-size:12px;margin-left:8px;font-weight:600;">${(v.verdict_type || '').toUpperCase()}</span>
-              <span style="color:${confColor};font-size:12px;margin-left:4px;">(${v.confidence || ''} confidence)</span><br>
-              <span style="color:#e2e8f0;margin-top:6px;display:block;">${v.verdict}</span>
-              <em style="color:#64748b;font-size:12px;display:block;margin-top:4px;">Basis: ${v.basis || ''} · ${v.reason || ''}</em>`;
-          } else {
-            vd.innerHTML = `<strong style="color:#a78bfa;">Council Verdict</strong>
-              <span style="color:${typeColor};font-size:12px;margin-left:8px;font-weight:600;">${(v.verdict_type || 'UNRESOLVED').toUpperCase()}</span>
-              <span style="color:${confColor};font-size:12px;margin-left:4px;">(${v.confidence || 'low'} confidence)</span><br>
-              <span style="color:#f87171;margin-top:6px;display:block;">${v.reason || 'Insufficiently stable to render confidently'}</span>`;
-          }
-          panel.appendChild(vd);
-        }
-        if (q.phase2 && q.phase2.error) {
-          const err = document.createElement('pre');
-          err.textContent = `Phase2 parse error: ${q.phase2.error}`;
-          panel.appendChild(err);
-        }
-
-        out.appendChild(panel);
-      });
-    }
-  </script>
+</script>
 </body>
 </html>
