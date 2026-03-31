@@ -32,6 +32,7 @@ run_rebuttal = os.getenv("RUN_REBUTTAL", "").lower() in ("1", "true", "yes")
 run_refine = os.getenv("RUN_REFINE", "").lower() in ("1", "true", "yes")
 run_reverse_rebuttal = os.getenv("RUN_REVERSE_REBUTTAL", "").lower() in ("1", "true", "yes")
 accumulate_context = os.getenv("ACCUMULATE_CONTEXT", "0").lower() in ("1", "true", "yes")
+progress_enabled = os.getenv("COUNCIL_PROGRESS", "").lower() in ("1", "true", "yes")
 local_system_phase1 = os.getenv("LOCAL_SYSTEM_PHASE1", "You are a terse adjudicator (phase 1). Use only the user question and the replies provided. Compliance (sentence count) is already given in brackets; do not re-evaluate it. Do not use outside knowledge. Do not use numeric scores or ratings. Respond with valid JSON only, no prose before or after, in the form: {\"replies\": [ { .. }, { .. }, { .. } ]}. For each reply object include: model, compliance (copy as given), direct_answer (yes, partial, or no), flaw_label (one of: frame shift, change of basis, hedge, evasion, contradiction, asymmetry, institutional defense, abstraction, length_violation, premise_echo, noncompliant), flaw_reason (short phrase). If compliance is NONCOMPLIANT, set flaw_label=noncompliant and direct_answer=no. Label guidance: Frame shift = answers a different question and does not return to the original; providing rationale for the chosen option is NOT frame shift. Change of basis = replaces the original metric or standard with a different one as the basis for judgment. Asymmetry = applies a standard or weighting to one side without acknowledging the symmetrical case. Test: if both directions are addressed with evidence, do not label asymmetry regardless of detail balance. Abstraction = stays general without concrete reasoning or mechanism. Hedge = softens the commitment (e.g., likely, not necessarily) instead of taking a position. Evasion = avoids committing to an option (preserve vs vacate, commandeering vs uniformity, etc.). Length_violation = more than one grammatical sentence; subordinate clauses and commas inside a single sentence are allowed. Premise_echo = the reply merely restates the prompt's framing or conclusion without adding any new mechanism, evidence, or reasoning. Contradiction = only when the reply simultaneously asserts P and not-P about the same subject/time; restating a chosen position by negating the rejected alternative is NOT contradiction. Institutional defense = protects an entity instead of answering. Be concise.")
 
 local_system_phase2 = os.getenv("LOCAL_SYSTEM_PHASE2", "You are a precise adjudicator (phase 2). You will receive the question, each reply, and phase-1 annotations for that reply. Compliance is provided; do not re-evaluate it. Do not introduce external facts not present in the replies; you may evaluate whether a reply's reasoning is specific or general. Do not use numeric scores or ratings. Respond with valid JSON only, no prose before or after. Output keys: consensus (one sentence), strongest (model name), weakest (model name), differences (\"substantive\" or \"stylistic\"). Penalize NONCOMPLIANT above all else when choosing strongest/weakest. Do not relabel flaws; rely on provided annotations. Length is not a flaw; a longer reply that identifies the mechanism precisely is stronger than a shorter reply that stays general. A reply with no flaw label is not automatically strongest; strongest means the most precise mechanism identification with specific, verifiable reasoning. Be precise.")
@@ -46,6 +47,13 @@ local_system_verdict = os.getenv("LOCAL_SYSTEM_VERDICT", "You are the council's 
 
 # run id persistence
 RUN_ID_FILE = os.path.join(BASE_DIR, "results", "run_id.txt")
+
+
+def progress(event, **fields):
+    if not progress_enabled:
+        return
+    payload = {"type": "progress", "event": event, **fields}
+    print(json.dumps(payload, ensure_ascii=False), file=sys.stderr, flush=True)
 
 
 def build_grouped_export(result_obj):
@@ -791,6 +799,7 @@ def main():
     else:
         text = sys.stdin.read().strip()
         turns = [{"role": "user", "content": text or "hi"}]
+    progress("run_start", run_id=run_id, domain=run_domain, questions=len(turns))
 
     # initialize histories per model
     hist_openai = []
@@ -803,6 +812,7 @@ def main():
     questions_out = []
 
     def run_model(name, caller, hist):
+        progress("model_start", run_id=run_id, model=name, questions=len(turns))
         outputs = []
         for idx, t in enumerate(turns, 1):
             msg = t["content"]
@@ -825,6 +835,7 @@ def main():
             outputs.append({"text": out, "compliant": compliant})
         results[name] = outputs
         model_callers[name] = caller
+        progress("model_complete", run_id=run_id, model=name, replies=len(outputs))
 
     histories = {
         "openai": hist_openai,
@@ -843,6 +854,7 @@ def main():
         adjudications = []
         for q_idx in range(num_q):
             question_text = turns[q_idx]['content']
+            progress("question_start", run_id=run_id, question_index=q_idx + 1, total_questions=num_q)
             # store questions for heuristic premise_echo use
             results["_questions"] = results.get("_questions", [])
             if len(results["_questions"]) <= q_idx:
@@ -851,6 +863,7 @@ def main():
             # Round 1 rebuttals (optional)
             rebuttals = {}
             if run_rebuttal:
+                progress("rebuttal_start", run_id=run_id, question_index=q_idx + 1)
                 originals = {}
                 for name, outs in results.items():
                     if name == local_model or name.startswith("_"):
@@ -887,6 +900,7 @@ def main():
             revised = {}
             flip_info = {}
             if run_refine and run_rebuttal and rebuttals:
+                progress("refine_start", run_id=run_id, question_index=q_idx + 1)
                 for name, outs in results.items():
                     if name == local_model or name.startswith("_"):
                         continue
@@ -955,6 +969,7 @@ def main():
             # phase 1: compliance + flaw labels (per-reply to avoid cross-contamination)
             ann_list = []
             ann_raw_parts = []
+            progress("phase1_start", run_id=run_id, question_index=q_idx + 1)
             for name, outs in results.items():
                 if name == local_model or name.startswith("_"):
                     continue
@@ -985,6 +1000,7 @@ def main():
 
             # phase 2: ranking using annotations and original replies
             lines_p2 = [f"Question: {question_text}", "Phase1 annotations:", json.dumps(ann), "Replies:"]
+            progress("phase2_start", run_id=run_id, question_index=q_idx + 1)
             for name, outs in results.items():
                 if name == local_model or name.startswith("_"):
                     continue
@@ -1055,6 +1071,7 @@ def main():
                 compute_weighted_score(r)
             # recompute consensus/strongest after revisions (use final weighted scores)
             if q_replies:
+                progress("axis_scoring_start", run_id=run_id, question_index=q_idx + 1, replies=len(q_replies))
                 sorted_replies = sorted(q_replies, key=lambda x: x.get("weighted_score", 0), reverse=True)
                 strongest = sorted_replies[0]["model"]
                 weakest = sorted_replies[-1]["model"]
@@ -1077,6 +1094,7 @@ def main():
             # Council verdict: synthesize final answer from deliberation
             verdict_obj = None
             if q_replies:
+                progress("verdict_start", run_id=run_id, question_index=q_idx + 1)
                 verdict_obj = council_verdict(question_text, q_replies, q_phase2_final.get("consensus", "") if isinstance(q_phase2_final, dict) else "")
                 if not quiet_json:
                     print(f"{local_model} (verdict q{q_idx+1}/{num_q}):", verdict_obj.get("verdict", "")[:120])
@@ -1092,6 +1110,7 @@ def main():
                 "weakest_weighted": weakest,
                 "verdict": verdict_obj,
             })
+            progress("question_complete", run_id=run_id, question_index=q_idx + 1, strongest=strongest, weakest=weakest)
         results[local_model] = "\n\n".join(adjudications)
     elif local_base and not local_model:
         print("Local: LOCAL_OPENAI_BASE set but LOCAL_MODEL missing", file=sys.stderr)
@@ -1143,6 +1162,7 @@ def main():
     result_obj["summary"] = summary
     if artifacts_dir:
         result_obj["artifacts"] = write_run_artifacts(result_obj, artifacts_dir)
+    progress("run_complete", run_id=run_id, questions=len(questions_out), artifacts=bool(result_obj.get("artifacts")))
     if quiet_json:
         print(json.dumps(result_obj, ensure_ascii=False, indent=2))
     else:
