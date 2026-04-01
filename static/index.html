@@ -243,6 +243,7 @@
           <select id="councilMode">
             <option value="sistm_stress" selected>SISTM Stress Test</option>
             <option value="code_review">Code Review</option>
+            <option value="research_synthesis">Research Synthesis</option>
           </select>
         </div>
         <div>
@@ -362,6 +363,13 @@ const MODE_META = {
     placeholder: 'Paste a function, module, or diff here...',
     customModeLabel: 'Code Paste',
   },
+  research_synthesis: {
+    label: 'Research Synthesis',
+    modeLabel: 'Prompt',
+    inputLabel: 'Research question',
+    placeholder: 'Paste a research question here...',
+    customModeLabel: 'Custom Question',
+  },
 };
 const PRESETS_BY_MODE = {
   sistm_stress: [
@@ -401,6 +409,15 @@ const PRESETS_BY_MODE = {
     ['07_input_validation', '07 Input Validation'],
     ['08_error_handling', '08 Error Handling'],
     ['custom', 'Code Paste'],
+  ],
+  research_synthesis: [
+    ['01_intermittent_fasting', '01 Intermittent Fasting'],
+    ['02_remote_work', '02 Remote Work'],
+    ['03_minimum_wage', '03 Minimum Wage'],
+    ['04_nuclear_safety', '04 Nuclear Safety'],
+    ['05_screen_time', '05 Screen Time'],
+    ['06_masks_covid', '06 Masks and COVID'],
+    ['custom', 'Custom Question'],
   ],
 };
 
@@ -535,8 +552,16 @@ $('runBtn').onclick = async () => {
   };
   if (mode === 'custom') {
     const input = $('jsonl').value.trim();
-    if (!input) { $('results').innerHTML = `<div class="error-box">${councilMode === 'code_review' ? 'Code review mode requires pasted code.' : 'Custom mode requires JSONL input.'}</div>`; btn.disabled = false; return; }
-    if (councilMode === 'code_review') body.code = input;
+    if (!input) {
+      const msg =
+        councilMode === 'code_review' ? 'Code review mode requires pasted code.' :
+        councilMode === 'research_synthesis' ? 'Research synthesis mode requires a research question.' :
+        'Custom mode requires JSONL input.';
+      $('results').innerHTML = `<div class="error-box">${msg}</div>`;
+      btn.disabled = false;
+      return;
+    }
+    if (councilMode === 'code_review' || councilMode === 'research_synthesis') body.code = input;
     else body.jsonl = input;
   }
 

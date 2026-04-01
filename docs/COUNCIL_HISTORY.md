@@ -313,6 +313,14 @@ Use:
 - Effect: dashboard mode requests now either resolve the correct mode-specific output or fail cleanly
 - Comparability: no scoring change; removes ambiguous dashboard interpretation
 
+## 2026-04-01 — Research Synthesis Mode Wired Through Web And Benchmark Paths
+
+- Area: mode plumbing
+- Change: added research-synthesis preset routing in `webapp.py`, added `question` input normalization, exposed research-synthesis mode and presets in the web UI, and ran the first six-prompt benchmark batch
+- Motivation: the mode contract was defined in `council_modes.py` but was not yet usable through the webapp/runtime contract
+- Effect: research-synthesis now behaves as a first-class mode alongside `SISTM` and `code_review`
+- Comparability: establishes the first research-synthesis benchmark corpus; new mode, so no cross-mode comparison should be inferred
+
 ## 2026-04-01 — Model Behavioral Profiles Published
 
 - Area: documentation/methodology

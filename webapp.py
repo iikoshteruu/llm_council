@@ -65,6 +65,14 @@ CODE_REVIEW_PRESETS = {
     "07_input_validation": os.path.join(BASE_DIR, "prompts", "code_review", "07_input_validation.py"),
     "08_error_handling": os.path.join(BASE_DIR, "prompts", "code_review", "08_error_handling.ts"),
 }
+RESEARCH_SYNTHESIS_PRESETS = {
+    "01_intermittent_fasting": os.path.join(BASE_DIR, "prompts", "research_synthesis", "01_intermittent_fasting.jsonl"),
+    "02_remote_work": os.path.join(BASE_DIR, "prompts", "research_synthesis", "02_remote_work.jsonl"),
+    "03_minimum_wage": os.path.join(BASE_DIR, "prompts", "research_synthesis", "03_minimum_wage.jsonl"),
+    "04_nuclear_safety": os.path.join(BASE_DIR, "prompts", "research_synthesis", "04_nuclear_safety.jsonl"),
+    "05_screen_time": os.path.join(BASE_DIR, "prompts", "research_synthesis", "05_screen_time.jsonl"),
+    "06_masks_covid": os.path.join(BASE_DIR, "prompts", "research_synthesis", "06_masks_covid.jsonl"),
+}
 
 app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="")
 RUN_JOBS = {}
@@ -106,6 +114,8 @@ def resolve_artifact_path(relpath: str):
 def get_prompt_presets(council_mode: str):
     if council_mode == "code_review":
         return CODE_REVIEW_PRESETS
+    if council_mode == "research_synthesis":
+        return RESEARCH_SYNTHESIS_PRESETS
     return PROMPT_PRESETS
 
 
@@ -386,6 +396,11 @@ def normalize_custom_input(council_mode, custom_jsonl=None, code_text=None):
         if not code_text:
             return None, "code_review mode requires pasted code"
         return [{"role": "user", "content": code_text}], None
+    if input_type == "question":
+        question_text = (code_text or custom_jsonl or "").strip()
+        if not question_text:
+            return None, "research_synthesis mode requires a research question"
+        return [{"role": "user", "content": question_text}], None
 
     raw = (custom_jsonl or "").strip()
     if not raw:
@@ -426,7 +441,9 @@ def api_run():
     if mode == "custom":
         if mode_cfg.get("input_type") == "code" and not (code_text and code_text.strip()):
             return jsonify({"returncode": -1, "data": {"error": "no_code_input"}, "stderr": "code_review mode requires pasted code"}), 400
-        if mode_cfg.get("input_type") != "code" and not (custom_jsonl and custom_jsonl.strip()):
+        if mode_cfg.get("input_type") == "question" and not ((code_text or custom_jsonl) and (code_text or custom_jsonl).strip()):
+            return jsonify({"returncode": -1, "data": {"error": "no_question_input"}, "stderr": "research_synthesis mode requires a research question"}), 400
+        if mode_cfg.get("input_type") == "jsonl" and not (custom_jsonl and custom_jsonl.strip()):
             return jsonify({"returncode": -1, "data": {"error": "no_custom_jsonl"}, "stderr": "custom mode requires JSONL"}), 400
 
     prompt_path = DEFAULT_PROMPTS
@@ -459,9 +476,9 @@ def api_run():
         if mode in presets:
             prompt_path, preset_temp_path = materialize_preset_prompt(mode, council_mode)
             temp_file_path = preset_temp_path
-            domain = "code_review" if council_mode == "code_review" else mode
+            domain = council_mode if council_mode in {"code_review", "research_synthesis"} else mode
         elif mode == "custom":
-            domain = data.get("domain") or ("code_review" if council_mode == "code_review" else "custom")
+            domain = data.get("domain") or (council_mode if council_mode in {"code_review", "research_synthesis"} else "custom")
         # else: prompt_path already set
 
         code, out, err = run_council_with_file(prompt_path, run_rebuttal_flag, run_refine_flag, run_reverse_flag, domain=domain, council_mode=council_mode)
@@ -518,7 +535,9 @@ def api_run_async():
     if mode == "custom":
         if mode_cfg.get("input_type") == "code" and not (code_text and code_text.strip()):
             return jsonify({"error": "no_code_input", "detail": "code_review mode requires pasted code"}), 400
-        if mode_cfg.get("input_type") != "code" and not (custom_jsonl and custom_jsonl.strip()):
+        if mode_cfg.get("input_type") == "question" and not ((code_text or custom_jsonl) and (code_text or custom_jsonl).strip()):
+            return jsonify({"error": "no_question_input", "detail": "research_synthesis mode requires a research question"}), 400
+        if mode_cfg.get("input_type") == "jsonl" and not (custom_jsonl and custom_jsonl.strip()):
             return jsonify({"error": "no_custom_jsonl", "detail": "custom mode requires JSONL"}), 400
 
     prompt_path = DEFAULT_PROMPTS
@@ -548,9 +567,9 @@ def api_run_async():
         prompt_path, preset_temp_path = materialize_preset_prompt(mode, council_mode)
         if preset_temp_path:
             temp_path = preset_temp_path
-        domain = "code_review" if council_mode == "code_review" else mode
+        domain = council_mode if council_mode in {"code_review", "research_synthesis"} else mode
     elif mode == "custom":
-        domain = data.get("domain") or ("code_review" if council_mode == "code_review" else "custom")
+        domain = data.get("domain") or (council_mode if council_mode in {"code_review", "research_synthesis"} else "custom")
 
     job_id = start_async_run(prompt_path, run_rebuttal_flag, run_refine_flag, run_reverse_flag, domain=domain, council_mode=council_mode, temp_file_path=temp_path)
     return jsonify({"job_id": job_id, "status": "queued"})
