@@ -328,10 +328,46 @@ All system prompts are overridable via environment variables. Mode-specific prom
 4. Run a benchmark batch to validate verdict classification
 5. Generate mode-specific aggregate and report to confirm separation
 
+## Future modes
+
+Planned modes in priority order. Each requires its own rubric — modes are not prompt skins.
+
+### Research synthesis (next)
+
+"Does X cause Y?" with competing evidence. The council evaluates evidence quality and uncertainty rather than argument structure. This is the first mode where acknowledging uncertainty is rewarded, not penalized.
+
+| Axis | What it measures |
+|------|-----------------|
+| evidence_quality | Cites specific studies, data, or mechanisms vs vague claims |
+| causal_inference | Distinguishes correlation from causation, identifies confounders |
+| uncertainty_handling | Acknowledges limits, quantifies confidence, avoids false certainty |
+| citation_specificity | Names sources, dates, sample sizes vs "studies show" |
+| counterargument_acknowledgment | Addresses the strongest opposing evidence directly |
+
+Verdict types: `supported` / `contested` / `insufficient_evidence`
+
+Why next: strong rubric boundary, clear user value, tests a new evaluation dimension (uncertainty-aware truth-seeking). The pipeline has only evaluated argument quality (SISTM) and technical correctness (code review) — research synthesis adds evidence evaluation.
+
+### General council (after research synthesis)
+
+Open-ended questions where you want the best answer from adversarial deliberation. No forced binary, no sentence constraint. The "use it like ChatGPT but with three models arguing" mode.
+
+Held until research synthesis is proven because: without a tight rubric, this mode risks becoming generic assistant scoring — exactly what every other LLM council already does. The rubric definition for "what makes a good general answer" needs to be sharp enough to produce real signal, not just "nice-looking outputs."
+
+### Legal analysis (future)
+
+Contract clause interpretation, regulatory compliance, policy analysis. Scoped initially to policy/regulatory interpretation, not broad legal reasoning — jurisdiction drift makes evaluation unreliable without tight scoping.
+
+### Threat assessment (future)
+
+Given a system description, identify attack vectors. Reuses the findings-first pattern from code review with severity based on exploitability and impact. Tests whether the code review architecture generalizes to non-code technical analysis.
+
 ## Documentation
 
 - [System Reference](docs/COUNCIL_SYSTEM.md) -- architecture, modes, scoring, flaw taxonomy, known model behaviors
 - [Run Book](docs/COUNCIL_RUNBOOK.md) -- operational guide, troubleshooting, adding domains/models/modes
+- [Model Profiles](docs/MODEL_PROFILES.md) -- empirical behavioral findings per model across modes
+- [System History](docs/COUNCIL_HISTORY.md) -- evolution record of what changed, why, and what it affected
 
 ## License
 
