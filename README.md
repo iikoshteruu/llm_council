@@ -4,6 +4,42 @@ A multi-model deliberation and evaluation pipeline with mode-specific rubrics, c
 
 Multiple LLMs answer each question independently, deliberate through adversarial rebuttal and refinement rounds, and are then evaluated by an independent adjudicator across mode-specific quality axes. The pipeline produces a deterministic verdict with confidence classification -- not just analysis, but a final answer that survived deliberation.
 
+## Screenshots
+
+### Verdict output — adversarial stress test
+
+The council renders a verdict with confidence classification after models deliberate. When evidence is insufficient, the verdict is withheld.
+
+![Verdict — contested with low confidence](docs/images/verdict_contested.png)
+
+![Verdict — majority with high confidence](docs/images/verdict_majority.png)
+
+### Dashboard — cross-run analytics
+
+The dashboard shows aggregate model performance, axis scores, flip behavior, domain breakdowns, discriminative power, and consensus stability across all runs.
+
+![Dashboard — model scores and axis heatmap](docs/images/dashboard_overview.png)
+
+![Dashboard — per-domain breakdown](docs/images/dashboard_domains.png)
+
+![Dashboard — discriminative power and consensus stability](docs/images/dashboard_analytics.png)
+
+## Architecture
+
+The pipeline is a four-stage process. Each stage builds on the last, and the system is designed so that no stage can be skipped or faked.
+
+**Stage 1 — Discovery.** Multiple LLMs receive the same input independently. No model sees another's response. Each produces its own analysis or answer.
+
+**Stage 2 — Deliberation.** Each model receives the other models' responses and writes a targeted rebuttal. Then each model revises its own response after seeing the rebuttals directed at it. The pipeline tracks whether each model changed its position, whether the change cited evidence from the rebuttals, and which specific rebuttal caused the change.
+
+**Stage 3 — Adjudication.** An independent model — one that did not participate in the council — evaluates every response. It labels flaws or findings, scores each response across mode-specific quality axes, and ranks the council members. The adjudicator never sees its own output. Scoring is deterministic: fixed axis weights, conviction bonuses for holding strong positions, penalties for changing position without evidence.
+
+**Stage 4 — Verdict.** The pipeline classifies the outcome deterministically — unanimous, majority, contested, or unstable — based on score gaps, flip patterns, and evidence quality. When the evidence supports it, a synthesized verdict is rendered. When it doesn't, the system declines to render and explains why. The verdict is the terminal artifact: the council's final judgment on the question.
+
+The adjudicator, the council roster, the quality axes, the scoring weights, and the verdict classification logic are all configurable per mode. The pipeline engine itself is mode-agnostic.
+
+Every adjudication call is logged with timestamp, call type, raw response, parse status, and latency for full observability.
+
 ## Modes
 
 The pipeline engine is mode-agnostic. Each mode defines its own axes, scoring weights, adjudication prompts, verdict classifier, and input format. Modes are not prompt skins -- they are distinct evaluation rubrics.
