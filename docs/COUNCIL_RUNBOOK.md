@@ -253,7 +253,7 @@ The following are mode-agnostic and do not need to be redefined:
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| Consensus says "No consensus label extracted" | Adjudicator call failed or timed out | Check adjudicator logs; rerun |
+| Consensus says "No consensus label extracted" | Adjudicator call failed or timed out | Run without `JSON_ONLY` to see adjudicator stderr output; check API key and connectivity; rerun |
 | All scores identical across models | Axis cascade bug reintroduced | Verify axis scorer prompt does not contain "skipped low structural" logic |
 | Phase 1 flaws appear on wrong model | Cross-broadcast bug reintroduced | Verify Phase 1 annotations are per-model (one entry per reply) |
 | Same code_hash across "patched" runs | Webapp not restarted after code change | Restart Flask or rebuild Docker image, confirm new code_hash |
