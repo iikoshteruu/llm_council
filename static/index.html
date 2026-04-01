@@ -208,6 +208,18 @@
     .error-box { background: #7f1d1d; border: 1px solid var(--accent-red); border-radius: 8px; padding: 16px; color: var(--accent-red); }
     .error-box pre { background: transparent; border: none; padding: 0; color: inherit; font-size: 12px; margin-top: 8px; }
 
+    /* Dashboard */
+    .dash-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+    .dash-stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; }
+    .dash-stat-value { font-size: 28px; font-weight: 800; }
+    .dash-stat-label { font-size: 12px; color: var(--text-faint); margin-top: 4px; }
+    .dash-stat-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+    .dash-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+    .dash-table th { text-align: left; padding: 8px 10px; color: var(--text-dim); font-weight: 500; border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .dash-table td { padding: 8px 10px; border-bottom: 1px solid var(--border-light); }
+    .dash-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+    .dash-section h3 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 12px; }
+
     /* Responsive */
     @media (max-width: 700px) {
       .controls-grid { grid-template-columns: 1fr; }
@@ -291,11 +303,16 @@
       </div>
     </div>
 
-    <!-- Export bar -->
-    <div class="export-bar" id="exportBar" style="display:none;">
-      <button class="btn-sm" id="exportNdjsonBtn">NDJSON</button>
-      <button class="btn-sm" id="exportGroupedBtn">Grouped JSON</button>
-      <button class="btn-sm" id="exportSummaryBtn">Summary JSON</button>
+    <!-- View tabs -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button class="btn-sm" id="tabResults" style="border-color:var(--accent-purple);color:var(--text);" onclick="showTab('results')">Results</button>
+      <button class="btn-sm" id="tabDashboard" onclick="showTab('dashboard')">Dashboard</button>
+      <div style="flex:1;"></div>
+      <div class="export-bar" id="exportBar" style="display:none;">
+        <button class="btn-sm" id="exportNdjsonBtn">NDJSON</button>
+        <button class="btn-sm" id="exportGroupedBtn">Grouped</button>
+        <button class="btn-sm" id="exportSummaryBtn">Summary</button>
+      </div>
     </div>
 
     <!-- Results -->
@@ -304,6 +321,14 @@
         <div class="icon">&#9878;</div>
         <div>Select a domain and run the council</div>
       </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" style="display:none;">
+      <div class="results-empty" id="dashboardLoading">
+        <div>Loading aggregate data...</div>
+      </div>
+      <div id="dashboardContent" style="display:none;"></div>
     </div>
   </div>
 
@@ -377,6 +402,13 @@ function authHeaders() {
   return k ? { 'X-API-Key': k } : {};
 }
 
+function sseUrl(jobId) {
+  const k = $('apiKey').value.trim();
+  const url = new URL(`/api/run_stream/${jobId}`, window.location.origin);
+  if (k) url.searchParams.set('api_key', k);
+  return url.toString();
+}
+
 function modelColor(name) { return MODEL_COLORS[name] || '#94a3b8'; }
 function modelShort(name) { return MODEL_SHORT[name] || name.split('/').pop(); }
 function activeCouncilMode() { return $('councilMode').value || 'sistm_stress'; }
@@ -418,24 +450,34 @@ function hideProgress() {
   $('progressBar').classList.remove('active');
 }
 
-// ── SSE listener (wired to Codex's GET /api/run/stream) ──
+// ── SSE listener (GET /api/run_stream/<job_id>) ──
 
-function connectSSE(runId) {
+function connectSSE(jobId) {
   if (sseSource) sseSource.close();
   try {
-    sseSource = new EventSource(`/api/run/stream?run_id=${runId}`);
-    sseSource.onmessage = (e) => {
+    sseSource = new EventSource(sseUrl(jobId));
+    sseSource.addEventListener('progress', (e) => {
       try {
         const d = JSON.parse(e.data);
         if (d.stage_index !== undefined) {
           updateProgress(d.stage_index, `<strong>${d.stage || ''}</strong> ${d.detail || ''}`);
         }
-        if (d.done) {
-          sseSource.close();
-          sseSource = null;
+      } catch (err) {}
+    });
+    sseSource.addEventListener('status', (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        if (d.status === 'running') {
+          updateProgress(0, '<strong>Council Generation</strong> — querying models...');
         }
       } catch (err) {}
-    };
+    });
+    sseSource.addEventListener('complete', () => {
+      if (sseSource) { sseSource.close(); sseSource = null; }
+    });
+    sseSource.addEventListener('error', () => {
+      if (sseSource) { sseSource.close(); sseSource = null; }
+    });
     sseSource.onerror = () => { if (sseSource) { sseSource.close(); sseSource = null; } };
   } catch (err) {
     // SSE not available yet; progress will just show running
@@ -484,29 +526,63 @@ $('runBtn').onclick = async () => {
   }, 1000);
 
   try {
-    const res = await fetch('/api/run', {
+    // Submit — returns job_id immediately
+    const res = await fetch('/api/run_async', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
     });
-    const payload = await res.json();
-    lastPayload = payload;
-    clearInterval(timer);
-    hideProgress();
-    $('runStatus').textContent = '';
+    const submitResult = await res.json();
 
-    if (payload.returncode !== 0 || !payload.data || payload.data.error) {
-      $('results').innerHTML = `<div class="error-box"><strong>Run failed</strong><pre>${payload.stderr || payload.data?.error || 'Unknown error'}</pre></div>`;
-    } else {
-      renderResults(payload.data);
-      $('exportBar').style.display = 'flex';
+    if (!res.ok || submitResult.error || !submitResult.job_id) {
+      clearInterval(timer);
+      hideProgress();
+      $('results').innerHTML = `<div class="error-box"><strong>Submit failed</strong><pre>${submitResult.detail || submitResult.error || 'Unknown error'}</pre></div>`;
+      btn.disabled = false;
+      return;
     }
+
+    const jobId = submitResult.job_id;
+
+    // Connect SSE for live progress
+    connectSSE(jobId);
+
+    // Poll for completion
+    const pollResult = async () => {
+      while (true) {
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          const pollRes = await fetch(`/api/run_result/${jobId}`, { headers: authHeaders() });
+          const pollData = await pollRes.json();
+          if (pollData.done) {
+            lastPayload = pollData;
+            clearInterval(timer);
+            hideProgress();
+            if (sseSource) { sseSource.close(); sseSource = null; }
+            $('runStatus').textContent = '';
+
+            if (pollData.returncode !== 0 || !pollData.data || pollData.data.error) {
+              $('results').innerHTML = `<div class="error-box"><strong>Run failed</strong><pre>${pollData.stderr || pollData.data?.error || 'Unknown error'}</pre></div>`;
+            } else {
+              renderResults(pollData.data);
+              $('exportBar').style.display = 'flex';
+            }
+            btn.disabled = false;
+            return;
+          }
+        } catch (err) {
+          // poll failed, keep trying
+        }
+      }
+    };
+    pollResult();
+
   } catch (e) {
     clearInterval(timer);
     hideProgress();
     $('results').innerHTML = `<div class="error-box"><strong>Request failed</strong><pre>${e}</pre></div>`;
+    btn.disabled = false;
   }
-  btn.disabled = false;
 };
 
 // ── Render ──
@@ -818,6 +894,166 @@ function truncate(str, len) {
 
 $('councilMode').addEventListener('change', syncModeUI);
 syncModeUI();
+
+// ── Tab switching ──
+
+function showTab(tab) {
+  $('results').style.display = tab === 'results' ? 'block' : 'none';
+  $('dashboard').style.display = tab === 'dashboard' ? 'block' : 'none';
+  $('tabResults').style.borderColor = tab === 'results' ? 'var(--accent-purple)' : 'var(--border)';
+  $('tabResults').style.color = tab === 'results' ? 'var(--text)' : 'var(--text-dim)';
+  $('tabDashboard').style.borderColor = tab === 'dashboard' ? 'var(--accent-purple)' : 'var(--border)';
+  $('tabDashboard').style.color = tab === 'dashboard' ? 'var(--text)' : 'var(--text-dim)';
+  if (tab === 'dashboard') loadDashboard();
+}
+
+// ── Dashboard ──
+
+async function loadDashboard() {
+  $('dashboardLoading').style.display = 'block';
+  $('dashboardContent').style.display = 'none';
+  try {
+    const res = await fetch('/api/dashboard', { headers: authHeaders() });
+    if (!res.ok) {
+      $('dashboardLoading').innerHTML = '<div>No aggregate data available. Run the aggregator first.</div>';
+      return;
+    }
+    const data = await res.json();
+    if (data.error) {
+      $('dashboardLoading').innerHTML = `<div>${data.error === 'aggregate_missing' ? 'No aggregate data. Run the orchestrator or aggregator to generate.' : data.error}</div>`;
+      return;
+    }
+    $('dashboardLoading').style.display = 'none';
+    $('dashboardContent').style.display = 'block';
+    renderDashboard(data.aggregate);
+  } catch (e) {
+    $('dashboardLoading').innerHTML = `<div>Error loading dashboard: ${e}</div>`;
+  }
+}
+
+function renderDashboard(agg) {
+  const el = $('dashboardContent');
+  el.innerHTML = '';
+  const summary = agg.summary || {};
+  const models = Object.keys(summary).sort();
+  const byDomain = agg.by_domain || {};
+  const domains = Object.keys(byDomain).sort();
+
+  if (!models.length) { el.innerHTML = '<div class="results-empty">No model data in aggregate.</div>'; return; }
+
+  // Stat cards
+  const grid = document.createElement('div');
+  grid.className = 'dash-grid';
+  models.forEach(m => {
+    const s = summary[m];
+    const color = modelColor(m) || '#94a3b8';
+    const net = (s.strongest_count || 0) - (s.weakest_count || 0);
+    const flipPct = ((s.flip_rate || 0) * 100).toFixed(0);
+    grid.innerHTML += `<div class="dash-stat">
+      <div class="dash-stat-value" style="color:${color}">${(s.avg_score || 0).toFixed(1)}</div>
+      <div class="dash-stat-label">${m}</div>
+      <div class="dash-stat-sub">Flip: ${flipPct}% · Net: ${net >= 0 ? '+' : ''}${net} · N=${s.n_replies || 0}</div>
+    </div>`;
+  });
+  el.appendChild(grid);
+
+  // Scores table
+  const scoresSection = document.createElement('div');
+  scoresSection.className = 'dash-section';
+  scoresSection.innerHTML = '<h3>Overall Weighted Scores</h3>';
+  let table = '<table class="dash-table"><tr><th>Model</th><th>Mean</th><th>StdDev</th><th>Replies</th><th>Strongest</th><th>Weakest</th><th>Net</th></tr>';
+  models.forEach(m => {
+    const s = summary[m]; const color = modelColor(m) || '#94a3b8';
+    const net = (s.strongest_count || 0) - (s.weakest_count || 0);
+    const netStyle = net > 0 ? 'color:var(--accent-green)' : (net < 0 ? 'color:var(--accent-red)' : '');
+    table += `<tr><td style="color:${color};font-weight:700">${m}</td><td>${(s.avg_score||0).toFixed(1)}</td><td>${(s.std_score||0).toFixed(1)}</td><td>${s.n_replies||0}</td><td>${s.strongest_count||0}</td><td>${s.weakest_count||0}</td><td style="font-weight:700;${netStyle}">${net>=0?'+':''}${net}</td></tr>`;
+  });
+  scoresSection.innerHTML += table + '</table>';
+  el.appendChild(scoresSection);
+
+  // Axes
+  const allAxes = [...new Set(models.flatMap(m => Object.keys(summary[m].axes || {})))].sort();
+  if (allAxes.length) {
+    const axSection = document.createElement('div');
+    axSection.className = 'dash-section';
+    axSection.innerHTML = '<h3>Axis Score Averages</h3>';
+    let ax = '<table class="dash-table"><tr><th>Model</th>' + allAxes.map(a => `<th>${AXIS_SHORT[a]||a}</th>`).join('') + '</tr>';
+    models.forEach(m => {
+      const color = modelColor(m) || '#94a3b8'; const axes = summary[m].axes || {};
+      ax += `<tr><td style="color:${color};font-weight:700">${m}</td>`;
+      allAxes.forEach(a => { const v = axes[a]; ax += `<td style="text-align:center;background:rgba(52,211,153,${v?(v/5)*0.2:0})">${v!==undefined?v.toFixed(2):'—'}</td>`; });
+      ax += '</tr>';
+    });
+    axSection.innerHTML += ax + '</table>';
+    el.appendChild(axSection);
+  }
+
+  // Flips
+  const flipSection = document.createElement('div');
+  flipSection.className = 'dash-section';
+  flipSection.innerHTML = '<h3>Flip Behavior</h3>';
+  let ft = '<table class="dash-table"><tr><th>Model</th><th>Flip Rate</th><th>Uncited</th><th>Conviction</th></tr>';
+  models.forEach(m => {
+    const s = summary[m]; const color = modelColor(m) || '#94a3b8';
+    const fp = ((s.flip_rate||0)*100).toFixed(1); const up = ((s.uncited_flip_rate||0)*100).toFixed(1);
+    const b = s.avg_conviction_bonus || 0;
+    ft += `<tr><td style="color:${color};font-weight:700">${m}</td><td style="color:${fp>25?'var(--accent-red)':fp>15?'var(--accent-yellow)':'var(--accent-green)'}">${fp}%</td><td>${up}%</td><td style="color:${b>1?'var(--accent-green)':b>0?'var(--accent-yellow)':'var(--accent-red)'}">${b>=0?'+':''}${b.toFixed(2)}</td></tr>`;
+  });
+  flipSection.innerHTML += ft + '</table>';
+  el.appendChild(flipSection);
+
+  // Domains
+  if (domains.length > 1) {
+    const domSection = document.createElement('div');
+    domSection.className = 'dash-section';
+    domSection.innerHTML = '<h3>Scores by Domain</h3>';
+    domains.forEach(d => {
+      const dd = byDomain[d]; const dm = models.filter(m => dd[m]);
+      if (!dm.length) return;
+      let dt = `<div style="margin-bottom:6px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px">${d.replace(/_/g,' ')}</div>`;
+      dt += '<table class="dash-table"><tr><th>Model</th><th>Mean</th><th>StdDev</th><th>N</th></tr>';
+      dm.forEach(m => { const s = dd[m]; dt += `<tr><td style="color:${modelColor(m)||'#94a3b8'};font-weight:700">${m}</td><td>${(s.avg_score||0).toFixed(1)}</td><td>${(s.std_score||0).toFixed(1)}</td><td>${s.n_replies||0}</td></tr>`; });
+      domSection.innerHTML += dt + '</table>';
+    });
+    el.appendChild(domSection);
+  }
+
+  // Discriminative power
+  const disc = agg.question_discriminative || {};
+  const dk = Object.keys(disc);
+  if (dk.length) {
+    const ds = document.createElement('div');
+    ds.className = 'dash-section';
+    ds.innerHTML = '<h3>Question Discriminative Power</h3>';
+    let dt = '<table class="dash-table"><tr><th>Spread</th><th>Runs</th><th>Question</th></tr>';
+    dk.sort((a,b) => (disc[b].score_spread||0) - (disc[a].score_spread||0)).slice(0,15).forEach(q => {
+      const info = disc[q]; const sp = info.score_spread||0;
+      const tag = sp>=3?'HIGH':sp>=1.5?'MED':'LOW';
+      const cls = sp>=3?'color:var(--accent-green)':sp>=1.5?'color:var(--accent-yellow)':'';
+      dt += `<tr><td style="font-weight:700;${cls}">${sp.toFixed(2)} ${tag}</td><td>${info.n_runs||0}</td><td style="font-size:12px">"${truncate(q,70)}..."</td></tr>`;
+    });
+    ds.innerHTML += dt + '</table>';
+    el.appendChild(ds);
+  }
+
+  // Consensus stability
+  const stab = agg.consensus_stability || {};
+  const sk = Object.keys(stab);
+  if (sk.length) {
+    const ss = document.createElement('div');
+    ss.className = 'dash-section';
+    ss.innerHTML = '<h3>Consensus Stability</h3>';
+    let st = '<table class="dash-table"><tr><th>Stability</th><th>Runs</th><th>Question</th><th>Dominant</th></tr>';
+    sk.sort((a,b) => (stab[a].stability||0) - (stab[b].stability||0)).slice(0,15).forEach(q => {
+      const info = stab[q]; const r = info.stability||0;
+      const tag = r>=0.8?'STABLE':r>=0.5?'MIXED':'UNSTABLE';
+      const cls = r>=0.8?'color:var(--accent-green)':r>=0.5?'color:var(--accent-yellow)':'color:var(--accent-red)';
+      st += `<tr><td style="font-weight:700;${cls}">${(r*100).toFixed(0)}% ${tag}</td><td>${info.n_runs||0}</td><td style="font-size:12px">"${truncate(q,55)}..."</td><td style="font-size:12px">${truncate(info.dominant_label||'',35)}</td></tr>`;
+    });
+    ss.innerHTML += st + '</table>';
+    el.appendChild(ss);
+  }
+}
 
 </script>
 </body>
