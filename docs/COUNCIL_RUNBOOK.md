@@ -72,6 +72,46 @@ Use these logs to:
 
 ---
 
+## Web UI Views
+
+The web UI has two views, toggled by the tabs at the top of the results area.
+
+### Results tab
+
+Shows the output of the most recent council run. This is the per-question view:
+
+- **Verdict hero card** — the council's final judgment with type badge (unanimous/majority/contested/unstable or confirmed/disputed/clean/inconclusive) and confidence level. This is the primary output. When the council withholds a verdict, the card shows why.
+- **Score comparison bar** — all council members' weighted scores side by side at the top of each question.
+- **Reply cards** — one per council member, sorted by weighted score (strongest first). Each shows:
+  - Model name and score with color coding
+  - Badges: compliant/noncompliant, strongest/weakest, flip status with provenance, conviction bonus, flaw labels
+  - Original text (if different from final, showing what changed during deliberation)
+  - Final text
+  - Rebuttal text with target model
+  - Axis score bars with per-axis colors
+  - Phase 1 annotation detail
+- **Consensus bar** (SISTM mode) or **findings list** (code review mode)
+
+The Results tab clears when a new run starts. Export buttons (NDJSON, Grouped, Summary) download artifacts from the server when available, falling back to client-side construction.
+
+### Dashboard tab
+
+Shows aggregate data across all runs in the current benchmark corpus. Updated automatically after each web run completes. Displays:
+
+- **Stat cards** — per-model average score, flip rate, net strongest/weakest, reply count
+- **Overall weighted scores table** — mean, StdDev, strongest/weakest counts, net
+- **Axis score averages** — heatmap table showing each model's average per axis with green intensity scaling
+- **Flip behavior** — flip rate, uncited rate, and conviction bonus per model with color-coded thresholds
+- **Scores by domain** — per-domain breakdown when multiple domains are present
+- **Discriminative power** — which questions produce the most model separation (HIGH/MED/LOW with score spread)
+- **Consensus stability** — which questions produce consistent verdicts across runs (STABLE/MIXED/UNSTABLE)
+
+The dashboard is mode-aware — it shows data for the currently selected council mode (SISTM or Code Review). Switching modes shows different aggregate data.
+
+The dashboard requires at least one completed run to populate. If no aggregate data exists, it displays a message to run the council first.
+
+---
+
 ## Running a Reverse-Rebuttal Diagnostic
 
 Purpose: determine whether model flips are evidence-driven or recency-driven.
