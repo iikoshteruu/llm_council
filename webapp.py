@@ -55,6 +55,16 @@ PROMPT_PRESETS = {
     "monetary_policy": os.path.join(PROMPT_DIR, "prompts_monetary_policy.jsonl"),
     "food_agriculture": os.path.join(PROMPT_DIR, "prompts_food_agriculture.jsonl"),
 }
+CODE_REVIEW_PRESETS = {
+    "01_auth_middleware": os.path.join(BASE_DIR, "prompts", "code_review", "01_auth_middleware.py"),
+    "02_cache_layer": os.path.join(BASE_DIR, "prompts", "code_review", "02_cache_layer.py"),
+    "03_task_queue": os.path.join(BASE_DIR, "prompts", "code_review", "03_task_queue.py"),
+    "04_data_pipeline": os.path.join(BASE_DIR, "prompts", "code_review", "04_data_pipeline.py"),
+    "05_async_state_js": os.path.join(BASE_DIR, "prompts", "code_review", "05_async_state_js.js"),
+    "06_concurrency_go": os.path.join(BASE_DIR, "prompts", "code_review", "06_concurrency_go.go"),
+    "07_input_validation": os.path.join(BASE_DIR, "prompts", "code_review", "07_input_validation.py"),
+    "08_error_handling": os.path.join(BASE_DIR, "prompts", "code_review", "08_error_handling.ts"),
+}
 
 app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="")
 RUN_JOBS = {}
@@ -91,6 +101,35 @@ def resolve_artifact_path(relpath: str):
     if not os.path.isfile(candidate):
         return None
     return candidate
+
+
+def get_prompt_presets(council_mode: str):
+    if council_mode == "code_review":
+        return CODE_REVIEW_PRESETS
+    return PROMPT_PRESETS
+
+
+def materialize_preset_prompt(mode: str, council_mode: str):
+    presets = get_prompt_presets(council_mode)
+    prompt_path = presets.get(mode)
+    if not prompt_path:
+        return None, None
+    if council_mode != "code_review":
+        return prompt_path, None
+
+    with open(prompt_path, "r", encoding="utf-8") as f:
+        code_text = f.read()
+    turns, normalize_error = normalize_custom_input("code_review", code_text=code_text)
+    if normalize_error:
+        raise ValueError(normalize_error)
+    validation_error = validate_turns(turns)
+    if validation_error:
+        raise ValueError(validation_error)
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8")
+    tmp.write("\n".join(json.dumps(turn, ensure_ascii=False) for turn in turns) + "\n")
+    tmp.flush()
+    tmp.close()
+    return tmp.name, tmp.name
 
 
 def run_council_with_file(prompt_file: str, run_rebuttal=False, run_refine=False, run_reverse_rebuttal=False, domain=None, council_mode=None):
@@ -365,10 +404,9 @@ def api_run():
 
     prompt_path = DEFAULT_PROMPTS
     temp_file = None
+    temp_file_path = None
 
     try:
-        if custom_jsonl:
-            pass
         if custom_jsonl or (mode == "custom" and code_text):
             turns, normalize_error = normalize_custom_input(council_mode, custom_jsonl=custom_jsonl, code_text=code_text)
             if normalize_error:
@@ -390,9 +428,11 @@ def api_run():
 
         # mode switch
         domain = None
-        if mode in PROMPT_PRESETS:
-            prompt_path = PROMPT_PRESETS[mode]
-            domain = mode  # preset key is the domain label
+        presets = get_prompt_presets(council_mode)
+        if mode in presets:
+            prompt_path, preset_temp_path = materialize_preset_prompt(mode, council_mode)
+            temp_file_path = preset_temp_path
+            domain = "code_review" if council_mode == "code_review" else mode
         elif mode == "custom":
             domain = data.get("domain") or ("code_review" if council_mode == "code_review" else "custom")
         # else: prompt_path already set
@@ -422,6 +462,12 @@ def api_run():
         if temp_file:
             try:
                 os.unlink(temp_file.name)
+            except OSError:
+                pass
+        if temp_file_path:
+            try:
+                if not temp_file or temp_file.name != temp_file_path:
+                    os.unlink(temp_file_path)
             except OSError:
                 pass
 
@@ -470,9 +516,12 @@ def api_run_async():
         prompt_path = tmp.name
         temp_path = tmp.name
 
-    if mode in PROMPT_PRESETS:
-        prompt_path = PROMPT_PRESETS[mode]
-        domain = mode
+    presets = get_prompt_presets(council_mode)
+    if mode in presets:
+        prompt_path, preset_temp_path = materialize_preset_prompt(mode, council_mode)
+        if preset_temp_path:
+            temp_path = preset_temp_path
+        domain = "code_review" if council_mode == "code_review" else mode
     elif mode == "custom":
         domain = data.get("domain") or ("code_review" if council_mode == "code_review" else "custom")
 

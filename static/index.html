@@ -246,34 +246,8 @@
           </select>
         </div>
         <div>
-          <label class="ctrl" for="mode">Domain</label>
-          <select id="mode">
-            <option value="nato_v3" selected>NATO SISTM v3</option>
-            <option value="constitutional">Constitutional</option>
-            <option value="finance">Finance</option>
-            <option value="ml_systems">ML Systems</option>
-            <option value="energy_nuclear">Energy – Nuclear</option>
-            <option value="energy_grid">Energy – Grid/Storage</option>
-            <option value="carbon">Carbon Removal</option>
-            <option value="privacy">Privacy/Crypto</option>
-            <option value="bio_med">Bio/Med</option>
-            <option value="security">Security</option>
-            <option value="cloud">Cloud/K8s</option>
-            <option value="softeng">Software Engineering</option>
-            <option value="international_law">International Law</option>
-            <option value="trade_sanctions">Trade/Sanctions</option>
-            <option value="criminal_justice">Criminal Justice</option>
-            <option value="ai_governance">AI Governance</option>
-            <option value="maritime_space">Maritime/Space</option>
-            <option value="labor_automation">Labor/Automation</option>
-            <option value="public_health">Public Health</option>
-            <option value="education">Education Policy</option>
-            <option value="housing">Housing/Land Use</option>
-            <option value="surveillance">Surveillance/Intel</option>
-            <option value="monetary_policy">Monetary Policy</option>
-            <option value="food_agriculture">Food/Agriculture</option>
-            <option value="custom">Custom JSONL</option>
-          </select>
+          <label class="ctrl" for="mode" id="modeLabel">Domain</label>
+          <select id="mode"></select>
         </div>
         <div>
           <label class="ctrl" for="apiKey">API Key (optional)</label>
@@ -376,16 +350,58 @@ const AXIS_COLORS = {
 const MODE_META = {
   sistm_stress: {
     label: 'SISTM',
+    modeLabel: 'Domain',
     inputLabel: 'Custom JSONL',
     placeholder: '{"role":"user","content":"In one sentence: ..."}',
     customModeLabel: 'Custom JSONL',
   },
   code_review: {
     label: 'Code Review',
+    modeLabel: 'Prompt',
     inputLabel: 'Code to review',
     placeholder: 'Paste a function, module, or diff here...',
     customModeLabel: 'Code Paste',
   },
+};
+const PRESETS_BY_MODE = {
+  sistm_stress: [
+    ['nato_v3', 'NATO SISTM v3'],
+    ['constitutional', 'Constitutional'],
+    ['finance', 'Finance'],
+    ['ml_systems', 'ML Systems'],
+    ['energy_nuclear', 'Energy – Nuclear'],
+    ['energy_grid', 'Energy – Grid/Storage'],
+    ['carbon', 'Carbon Removal'],
+    ['privacy', 'Privacy/Crypto'],
+    ['bio_med', 'Bio/Med'],
+    ['security', 'Security'],
+    ['cloud', 'Cloud/K8s'],
+    ['softeng', 'Software Engineering'],
+    ['international_law', 'International Law'],
+    ['trade_sanctions', 'Trade/Sanctions'],
+    ['criminal_justice', 'Criminal Justice'],
+    ['ai_governance', 'AI Governance'],
+    ['maritime_space', 'Maritime/Space'],
+    ['labor_automation', 'Labor/Automation'],
+    ['public_health', 'Public Health'],
+    ['education', 'Education Policy'],
+    ['housing', 'Housing/Land Use'],
+    ['surveillance', 'Surveillance/Intel'],
+    ['monetary_policy', 'Monetary Policy'],
+    ['food_agriculture', 'Food/Agriculture'],
+    ['custom', 'Custom JSONL'],
+  ],
+  code_review: [
+    ['01_auth_middleware', '01 Auth Middleware'],
+    ['02_cache_layer', '02 Cache Layer'],
+    ['03_task_queue', '03 Task Queue'],
+    ['04_data_pipeline', '04 Data Pipeline'],
+    ['05_async_state_js', '05 Async State JS'],
+    ['06_concurrency_go', '06 Concurrency Go'],
+    ['07_input_validation', '07 Input Validation'],
+    ['08_error_handling', '08 Error Handling'],
+    ['custom', 'Code Paste'],
+  ],
 };
 
 const PIPELINE_STAGES = [
@@ -413,14 +429,29 @@ function modelColor(name) { return MODEL_COLORS[name] || '#94a3b8'; }
 function modelShort(name) { return MODEL_SHORT[name] || name.split('/').pop(); }
 function activeCouncilMode() { return $('councilMode').value || 'sistm_stress'; }
 
+function rebuildModeOptions(modeKey) {
+  const select = $('mode');
+  const options = PRESETS_BY_MODE[modeKey] || PRESETS_BY_MODE.sistm_stress;
+  const previous = select.value;
+  select.innerHTML = '';
+  options.forEach(([value, label]) => {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    select.appendChild(opt);
+  });
+  const hasPrevious = options.some(([value]) => value === previous);
+  select.value = hasPrevious ? previous : options[0][0];
+}
+
 function syncModeUI() {
-  const meta = MODE_META[activeCouncilMode()] || MODE_META.sistm_stress;
+  const modeKey = activeCouncilMode();
+  const meta = MODE_META[modeKey] || MODE_META.sistm_stress;
+  rebuildModeOptions(modeKey);
   document.querySelector('.header .tag').textContent = meta.label;
+  $('modeLabel').textContent = meta.modeLabel;
   $('inputLabel').textContent = meta.inputLabel;
   $('jsonl').placeholder = meta.placeholder;
-  const customOpt = $('mode').querySelector('option[value="custom"]');
-  if (customOpt) customOpt.textContent = meta.customModeLabel;
-  if (activeCouncilMode() === 'code_review') $('mode').value = 'custom';
 }
 
 // ── Progress ──
