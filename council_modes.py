@@ -263,6 +263,132 @@ CODE_REVIEW_GEMINI_ADJ = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Research Synthesis Mode
+# ═══════════════════════════════════════════════════════════════════════════════
+
+RESEARCH_SYNTHESIS_AXES = [
+    ("evidence_quality", "Does the response cite specific studies, datasets, sample sizes, effect sizes, or mechanisms — not 'studies show' or 'research suggests'?"),
+    ("causal_inference", "Does the response distinguish correlation from causation, identify confounders, and address direction of effect?"),
+    ("uncertainty_handling", "Does the response acknowledge limits of current evidence, quantify confidence where possible, and avoid false certainty or false equivalence?"),
+    ("citation_specificity", "Does the response name specific sources (authors, years, institutions, datasets) vs vague appeals to authority?"),
+    ("counterargument_strength", "Does the response address the strongest opposing evidence directly, not a strawman version?"),
+    ("synthesis_quality", "Does the response integrate multiple lines of evidence into a coherent position rather than listing pros and cons?"),
+]
+
+RESEARCH_SYNTHESIS_AXIS_WEIGHTS = {
+    "evidence_quality": 2.0,
+    "causal_inference": 2.0,
+    "uncertainty_handling": 1.5,
+    "citation_specificity": 1.0,
+    "counterargument_strength": 1.5,
+    "synthesis_quality": 1.0,
+}
+
+RESEARCH_SYNTHESIS_PHASE1_PROMPT = "You are an evidence quality adjudicator (phase 1). You will receive a research question and one model's response. Evaluate the response's evidence handling. Respond with valid JSON only: {\"replies\": [{\"model\": \"<name>\", \"evidence_label\": \"<one of: well_sourced, vague_sourcing, false_certainty, false_equivalence, cherry_picking, unsupported_claim, appropriate_uncertainty>\", \"evidence_reason\": \"<short phrase>\", \"sources_cited\": <number of specific sources mentioned>, \"causal_claims_supported\": \"<yes, partial, or no>\"}]}. Label guidance: well_sourced = cites specific studies, data, or mechanisms with identifiable sources. vague_sourcing = appeals to \"research shows\" or \"studies suggest\" without naming sources. false_certainty = presents contested findings as established fact. false_equivalence = treats strong and weak evidence as equivalent. cherry_picking = cites supporting evidence while ignoring known contradictory findings. unsupported_claim = makes empirical or causal claims with no evidence at all. appropriate_uncertainty = honestly acknowledges where evidence is limited or conflicting. Be precise."
+
+RESEARCH_SYNTHESIS_PHASE2_PROMPT = "You are an evidence synthesis adjudicator (phase 2). You will receive a research question, all model responses, and phase-1 evidence annotations. Your job is to evaluate which response best synthesizes the available evidence. Respond with valid JSON only: {\"consensus\": \"<one sentence: what the evidence weight supports>\", \"evidence_agreement\": \"<agree, partial, or disagree>\", \"strongest\": \"<model name>\", \"weakest\": \"<model name>\", \"key_dispute\": \"<one sentence: main disagreement, if any>\"}. Strongest means the most thorough, well-sourced, uncertainty-aware synthesis. Weakest means the most vague, unsupported, or overconfident. Do not relabel evidence quality; rely on phase-1 annotations. Be precise."
+
+RESEARCH_SYNTHESIS_AXIS_PROMPT = "You are a terse rater for a single research synthesis axis. Use only the supplied question, response, evidence label, and context. Do not use outside knowledge. Respond with valid JSON only, no prose: {\"axis\":\"AXIS\",\"score\":N,\"reason\":\"...\"}. Score must be an integer 1-5 (1=very poor, 5=excellent). Reason max 15 words. A response that says 'studies show' without naming any scores 1 on citation_specificity. A response that presents contested findings as settled fact scores 1 on uncertainty_handling. Acknowledging genuine uncertainty is strength, not weakness. Axis description: AXIS_DESC."
+
+RESEARCH_SYNTHESIS_VERDICT_PROMPT = "You are the council's research synthesis lead. You have received a research question, three independent evidence reviews, their quality annotations, axis scores, and the evidence agreement assessment. Deliver the council's synthesis. Rules: (1) State what the weight of evidence supports. (2) Acknowledge where evidence is limited or conflicting. (3) Cite the strongest specific evidence mentioned by any reviewer. (4) Do not manufacture certainty — if evidence is genuinely contested, say so. (5) Do not mention the models or the review process. Present the synthesis as if you reviewed the evidence yourself. (6) Three to five sentences. Respond with valid JSON only: {\"verdict\": \"<the synthesis>\", \"evidence_direction\": \"<supports, opposes, mixed, or insufficient>\", \"confidence_note\": \"<one sentence on evidence quality/limitations>\", \"basis\": \"<one sentence: which reviewer's evidence anchored this>\"}."
+
+RESEARCH_SYNTHESIS_REBUTTAL_PROMPT = "You are a research critic. Given the other models' evidence syntheses, write one paragraph identifying the strongest specific piece of evidence or reasoning you dispute, and cite the counter-evidence. Do not introduce claims without evidence. If you find the other syntheses well-supported, explain what additional evidence would strengthen the conclusion."
+
+RESEARCH_SYNTHESIS_REFINE_PROMPT = "You are revising your evidence synthesis after seeing critiques. Update your synthesis to address the strongest counter-evidence raised. If the critique cites evidence that changes your conclusion, update accordingly. If it does not, explain why the cited evidence does not change the weight of your assessment. Do not mention that you are revising. Present your updated synthesis directly."
+
+
+def research_synthesis_verdict_classifier(q_replies, phase2=None):
+    """Deterministic verdict classification for research synthesis mode.
+
+    Types:
+      supported — models agree on evidence direction, high evidence quality
+      contested — models disagree on evidence interpretation
+      insufficient_evidence — models agree evidence is limited
+      inconclusive — low evidence quality across all models
+    """
+    if not q_replies:
+        return "inconclusive", "low", "no_replies"
+
+    sorted_replies = sorted(q_replies, key=lambda x: x.get("weighted_score", 0), reverse=True)
+    scores = [r.get("weighted_score", 0) for r in sorted_replies]
+    top_score = scores[0]
+    score_gap = top_score - scores[-1] if len(scores) > 1 else 0
+
+    # Check evidence labels from phase1
+    evidence_labels = []
+    for r in sorted_replies:
+        phase1 = r.get("phase1", [])
+        for p in (phase1 if isinstance(phase1, list) else [phase1]):
+            if isinstance(p, dict):
+                label = p.get("evidence_label") or p.get("flaw_label")
+                if label:
+                    evidence_labels.append(label)
+
+    # Check phase2 evidence agreement
+    evidence_agreement = None
+    if isinstance(phase2, dict):
+        evidence_agreement = phase2.get("evidence_agreement")
+
+    # Count label types
+    well_sourced = evidence_labels.count("well_sourced") + evidence_labels.count("appropriate_uncertainty")
+    weak_sourcing = evidence_labels.count("vague_sourcing") + evidence_labels.count("unsupported_claim")
+    certainty_issues = evidence_labels.count("false_certainty") + evidence_labels.count("false_equivalence") + evidence_labels.count("cherry_picking")
+
+    # Check flips
+    uncited_flips = 0
+    for r in sorted_replies:
+        flip_obj = r.get("flip")
+        if isinstance(flip_obj, dict) and flip_obj.get("flip") and flip_obj.get("flip_reason") == "uncited":
+            uncited_flips += 1
+
+    n = len(sorted_replies)
+
+    # Classification
+    if uncited_flips >= 2 or weak_sourcing == n:
+        verdict_type = "inconclusive"
+        basis = "low_evidence_quality" if weak_sourcing == n else "high_flip_instability"
+        return verdict_type, "low", basis
+
+    if well_sourced >= 2 and evidence_agreement == "agree" and score_gap >= 3:
+        return "supported", "high", "models_agree_well_sourced"
+
+    if well_sourced >= 2 and evidence_agreement == "agree":
+        return "supported", "moderate", "models_agree_moderate_gap"
+
+    if evidence_agreement == "disagree" or certainty_issues >= 2:
+        confidence = "moderate" if well_sourced >= 1 else "low"
+        return "contested", confidence, "evidence_disagreement"
+
+    if evidence_labels.count("appropriate_uncertainty") >= 2:
+        return "insufficient_evidence", "moderate", "models_acknowledge_evidence_limits"
+
+    if well_sourced >= 1 and score_gap >= 3:
+        return "supported", "moderate", "strongest_well_sourced"
+
+    return "contested", "low", "mixed_evidence_signals"
+
+
+RESEARCH_SYNTHESIS_MODE = {
+    "name": "research_synthesis",
+    "label": "Research Synthesis",
+    "axes": RESEARCH_SYNTHESIS_AXES,
+    "axis_weights": RESEARCH_SYNTHESIS_AXIS_WEIGHTS,
+    "phase1_prompt": RESEARCH_SYNTHESIS_PHASE1_PROMPT,
+    "phase2_prompt": RESEARCH_SYNTHESIS_PHASE2_PROMPT,
+    "axis_prompt": RESEARCH_SYNTHESIS_AXIS_PROMPT,
+    "verdict_prompt": RESEARCH_SYNTHESIS_VERDICT_PROMPT,
+    "verdict_classifier": research_synthesis_verdict_classifier,
+    "compliance_penalty": 1.0,  # no compliance penalty — no format constraint
+    "use_consensus": True,  # evidence consensus is valuable
+    "input_type": "question",
+    "adjudicator_model": None,
+    "council_models": None,
+    "rebuttal_prompt": RESEARCH_SYNTHESIS_REBUTTAL_PROMPT,
+    "refine_prompt": RESEARCH_SYNTHESIS_REFINE_PROMPT,
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Mode registry
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -271,6 +397,7 @@ MODES = {
     "code_review": CODE_REVIEW_GEMINI_ADJ,  # Gemini adjudicator is the default for code review
     "code_review_mistral_adj": CODE_REVIEW_MODE,  # Mistral adjudicator kept as comparison baseline
     "code_review_gemini_adj": CODE_REVIEW_GEMINI_ADJ,  # explicit alias
+    "research_synthesis": RESEARCH_SYNTHESIS_MODE,
 }
 
 DEFAULT_MODE = "sistm_stress"

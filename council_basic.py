@@ -927,12 +927,16 @@ def main():
     mode_cfg = get_mode(mode_name)
 
     # Override globals with mode config
-    global local_system_phase1, local_system_phase2, local_system_axis, local_system_verdict, AXES
+    global local_system_phase1, local_system_phase2, local_system_axis, local_system_verdict, AXES, local_system_rebuttal, local_system_refine
     local_system_phase1 = mode_cfg["phase1_prompt"]
     local_system_phase2 = mode_cfg["phase2_prompt"]
     local_system_axis = mode_cfg["axis_prompt"]
     local_system_verdict = mode_cfg["verdict_prompt"]
     AXES = mode_cfg["axes"]
+    if mode_cfg.get("rebuttal_prompt"):
+        local_system_rebuttal = mode_cfg["rebuttal_prompt"]
+    if mode_cfg.get("refine_prompt"):
+        local_system_refine = mode_cfg["refine_prompt"]
 
     # Adjudicator and roster from mode config
     adj_model_id = mode_cfg.get("adjudicator_model")
