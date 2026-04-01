@@ -140,6 +140,7 @@ def load_grouped_json(filepath):
     run_id = data.get("run_id")
     code_hash = data.get("code_hash")
     run_domain = data.get("domain")  # run-level domain
+    run_mode = data.get("mode")  # run-level mode
     records = []
     for q in data.get("questions", []):
         qi = q.get("index") or q.get("question_index")
@@ -151,6 +152,8 @@ def load_grouped_json(filepath):
             rec["question_text"] = qtext
             if q_domain:
                 rec["domain"] = q_domain
+            if run_mode:
+                rec["_mode"] = run_mode
             rec["phase2"] = {
                 "consensus": q.get("consensus"),
                 "strongest": q.get("strongest"),
@@ -610,13 +613,15 @@ def print_report(data):
     print("=" * 80)
 
 
-def export_json(data, outpath):
+def export_json(data, outpath, mode=None):
     """Export aggregation as JSON for downstream tooling."""
     export = {
         "summary": {},
         "by_domain": {},
         "run_stats": [],
     }
+    if mode:
+        export["mode"] = mode
     models = sorted(data["model_scores"].keys())
 
     for m in models:
@@ -717,12 +722,50 @@ def main():
         print("No NDJSON files found.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Loading {len(files)} NDJSON files...\n")
-    data = aggregate(files)
-    print_report(data)
+    print(f"Loading {len(files)} files...\n")
 
-    if write_json:
-        export_json(data, "council_aggregate.json")
+    # Load all records and partition by mode
+    all_records = []
+    for filepath in files:
+        if filepath.endswith('.json'):
+            all_records.extend(load_grouped_json(filepath))
+        else:
+            all_records.extend(load_ndjson(filepath))
+
+    # Detect mode per record
+    mode_files = defaultdict(list)  # mode -> [filepaths]
+    file_modes = {}  # filepath -> mode
+    for filepath in files:
+        if filepath.endswith('.json'):
+            recs = load_grouped_json(filepath)
+        else:
+            recs = load_ndjson(filepath)
+        if recs:
+            mode = recs[0].get("_mode") or recs[0].get("mode") or "sistm_stress"
+            file_modes[filepath] = mode
+            mode_files[mode].append(filepath)
+
+    modes_found = sorted(mode_files.keys()) if mode_files else ["sistm_stress"]
+
+    if len(modes_found) == 1:
+        # Single mode — behave exactly as before
+        mode = modes_found[0]
+        data = aggregate(files)
+        print_report(data)
+        if write_json:
+            export_json(data, "council_aggregate.json", mode=mode)
+    else:
+        # Multiple modes — aggregate and report separately
+        for mode in modes_found:
+            mode_file_list = mode_files[mode]
+            print(f"\n{'=' * 80}")
+            print(f"MODE: {mode.upper()} ({len(mode_file_list)} files)")
+            print(f"{'=' * 80}\n")
+            data = aggregate(mode_file_list)
+            print_report(data)
+            if write_json:
+                outpath = f"council_aggregate_{mode}.json"
+                export_json(data, outpath, mode=mode)
 
 
 if __name__ == "__main__":

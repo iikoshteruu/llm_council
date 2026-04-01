@@ -107,8 +107,8 @@ def generate_report(agg_data, compare_data=None):
 </head>
 <body>
 <div class="container">
-<h1>Council Runner Report</h1>
-<div class="subtitle">Generated {datetime.now().strftime('%Y-%m-%d %H:%M')} · {len(domains)} domains · {sum(s['n_replies'] for s in summary.values())} scored replies</div>
+<h1>Council Runner Report{' — ' + agg_data.get('mode', '').replace('_', ' ').title() if agg_data.get('mode') else ''}</h1>
+<div class="subtitle">Generated {datetime.now().strftime('%Y-%m-%d %H:%M')} · {len(domains)} domains · {sum(s['n_replies'] for s in summary.values())} scored replies{' · Mode: ' + agg_data.get('mode', '') if agg_data.get('mode') else ''}</div>
 """)
 
     # ── Stat cards ──
