@@ -1,8 +1,38 @@
-# LLM Council Runner — System Reference
+# LLM Council — System Reference
 
 ## Overview
 
-The Council Runner is a multi-model, multi-stage evaluation and deliberation pipeline designed to stress-test prompts that embed structural inversions (SISTM). Three LLMs answer each question independently, optionally deliberate via rebuttal and refinement rounds, and are then scored by a Mistral adjudicator across six quality axes with deterministic weighted scoring, conviction bonuses, and consensus extraction.
+The LLM Council is a multi-model, multi-stage evaluation and deliberation pipeline with mode-specific rubrics. Multiple LLMs answer each question independently, optionally deliberate via adversarial rebuttal and refinement rounds, and are then scored by a configurable adjudicator across mode-specific quality axes with deterministic weighted scoring, conviction bonuses, and verdict classification.
+
+The pipeline is mode-agnostic. Each mode defines its own axes, scoring weights, adjudication prompts, verdict classifier, and input format. Current modes: `sistm_stress` (adversarial reasoning stress tests), `code_review` (multi-model code review with findings-first verdicts).
+
+---
+
+## Mode System
+
+Modes are defined in `council_modes.py`. Each mode config owns:
+
+- **Axes and weights**: What quality dimensions are scored and how they're weighted
+- **Phase 1 prompt**: How per-reply/finding labeling works
+- **Phase 2 prompt**: How findings are merged / consensus is extracted
+- **Axis scoring prompt**: Template for per-axis evaluation
+- **Verdict prompt**: How the final synthesis is generated
+- **Verdict classifier**: Deterministic function that classifies verdict type and confidence
+- **Compliance penalty**: Whether and how noncompliance affects scoring
+- **Consensus toggle**: Whether majority consensus extraction runs
+- **Input type**: JSONL prompts or code paste
+- **Adjudicator model**: Which model adjudicates (default: Mistral via LOCAL_MODEL)
+- **Council roster**: Which models participate as council members
+
+The adjudicator is automatically excluded from the council roster. A model never evaluates its own output.
+
+### Available Modes
+
+| Mode | Adjudicator | Council | Verdict Types |
+|------|-------------|---------|---------------|
+| `sistm_stress` | Mistral (default) | GPT-4.1, Claude, Gemini | unanimous / majority / contested / unstable |
+| `code_review` | Mistral (default) | GPT-4.1, Claude, Gemini | confirmed / disputed / clean / inconclusive |
+| `code_review_gemini_adj` | Gemini | GPT-4.1, Claude, Mistral | confirmed / disputed / clean / inconclusive |
 
 ---
 
@@ -10,19 +40,24 @@ The Council Runner is a multi-model, multi-stage evaluation and deliberation pip
 
 ### Pipeline Stages
 
-**Stage 1 — Prompt Selection**
-Prompts are loaded from per-domain JSONL files or pasted as custom JSONL via the web UI. Each file contains four questions per domain. Prompts embed structural tensions (proxy destabilization, inversion, remedy vs right, sovereignty vs administration) and force a binary choice with mechanism, forbidding hedging.
+**Stage 1 — Input Selection**
+Input format depends on the mode:
+- **SISTM**: JSONL prompt files with per-domain questions (24 domains, 4 questions each), or custom JSONL via the web UI.
+- **Code review**: Code files or pasted code snippets via the web UI, normalized to internal turn structure.
 
-Available domain sets: finance, ML systems, energy_nuclear, energy_grid, carbon, privacy, bio/med, security, cloud, softeng, NATO v3, Constitutional, international_law, trade_sanctions, criminal_justice, ai_governance, maritime_space, labor_automation, public_health, education, housing, surveillance, monetary_policy, food_agriculture.
+SISTM domain sets: finance, ML systems, energy_nuclear, energy_grid, carbon, privacy, bio/med, security, cloud, softeng, NATO v3, Constitutional, international_law, trade_sanctions, criminal_justice, ai_governance, maritime_space, labor_automation, public_health, education, housing, surveillance, monetary_policy, food_agriculture.
+
+Code review prompts: `prompts/code_review/` contains curated code files with realistic bugs at varying severity levels.
 
 **Stage 2 — Council Generation**
-Three models answer each question independently with context isolation (ACCUMULATE_CONTEXT=0 by default, preventing cross-question bleed):
+Council models answer each question independently with context isolation (ACCUMULATE_CONTEXT=0 by default, preventing cross-question bleed). The council roster is configurable per mode.
 
+Default roster:
 - OpenAI gpt-4.1
 - Anthropic claude-opus-4-6
 - Google models/gemini-flash-latest
 
-Optional Grok hook exists but is typically skipped.
+When a non-default model is designated as adjudicator (e.g., Gemini in `code_review_gemini_adj`), it is removed from the council and the default adjudicator (Mistral) joins the council as a reviewer instead.
 
 **Stage 3 — Deliberation (Optional)**
 Controlled by "Run rebuttal" and "Run refine/flip" checkboxes in the UI.
@@ -85,7 +120,70 @@ When the evidence is insufficient (unstable or contested-with-low-confidence), t
 
 Output schema: `{verdict, verdict_type, confidence, basis, reason, strongest_model, strongest_score}`
 
-The verdict prompt is overridable via `LOCAL_SYSTEM_VERDICT`.
+The verdict prompt is overridable via `LOCAL_SYSTEM_VERDICT` or per-mode in `council_modes.py`.
+
+---
+
+## Code Review Mode
+
+Code review mode (`code_review`) uses findings as the unit of evaluation instead of reply positions.
+
+### Phase 1 — Finding Labels
+
+Each reviewer's findings are labeled individually:
+
+| Label | Definition |
+|-------|------------|
+| correct_finding | Real bug identified with supporting evidence |
+| false_positive | Flagged something that is not actually a bug |
+| missed_context | Finding ignores context that changes the assessment |
+| wrong_severity | Bug is real but severity is over/under-stated |
+| style_not_bug | Style preference or refactoring suggestion, not a correctness issue |
+
+### Phase 2 — Finding Merge
+
+Findings from all reviewers are deduplicated, and each merged finding is classified:
+- **confirmed**: Multiple reviewers agree on the finding
+- **disputed**: Reviewers disagree on whether it's a real bug
+- **unique**: Only one reviewer caught it
+
+### Scoring Axes
+
+| Axis | Weight | What It Measures |
+|------|--------|-----------------|
+| bug_identification | 2.0 | Real bugs found vs false positives |
+| severity_accuracy | 1.5 | Proportionate severity relative to actual impact |
+| evidence_quality | 2.0 | Cites specific lines, patterns, execution paths |
+| fix_quality | 1.5 | Fix is correct, minimal, and targeted |
+| regression_awareness | 1.0 | Considers side effects of the fix |
+| scope_discipline | 0.5 | Stays on bugs vs style/refactoring |
+
+No compliance penalty (1.0x multiplier) — code reviews have no sentence constraint.
+
+### Verdict Classification
+
+Verdict is derived from `phase2.merged_findings`, not from per-reply phase1 labels:
+
+| Type | Condition | Confidence |
+|------|-----------|------------|
+| confirmed | Findings exist, reviewers agree | High-Moderate |
+| disputed | Reviewers disagree on key findings | Moderate-Low |
+| clean | No real bugs found (style-only or empty) | High |
+| inconclusive | Mixed signals, insufficient agreement | Low (withheld) |
+
+Verdict output includes `findings_count`, `confirmed_bugs`, and `disputed` counts.
+
+Consensus extraction is disabled in code review mode — findings replace consensus.
+
+### Benchmark Results (Initial)
+
+First benchmark across 4 curated code files (auth middleware, cache layer, task queue, data pipeline):
+
+- Claude Opus: strongest in 3/4 cases (avg 40.0). Best on bug_identification (5.0) and severity_accuracy (5.0).
+- Gemini Flash: most stable reviewer — zero flips, +2 conviction every run. Held every position through deliberation.
+- GPT-4.1: weakest in 3/4 (avg 29.1). Flipped 3 times, all cited — evidence-driven updates, unlike its uncited SISTM flips.
+
+Key finding: GPT-4.1's flip behavior is materially different in code review vs SISTM — cited and evidence-driven rather than recency-driven. This validates having separate mode rubrics.
 
 ---
 

@@ -136,6 +136,70 @@ If a question doesn't match any keywords, it appears under "unknown." This fallb
 
 ---
 
+## Running a Code Review
+
+```bash
+python3 council_orchestrator.py \
+  --file prompts/code_review/01_auth_middleware.py \
+  --domain code_review --mode code_review \
+  --rebuttal --refine \
+  --artifacts-dir results/current/code_review/01_auth_middleware
+```
+
+Via web UI: select "Code Review" from the mode dropdown, paste code in the input area, and click Run.
+
+### Interpreting code review results
+
+- **Confirmed findings**: All reviewers agree the bug is real. These are high-signal.
+- **Disputed findings**: Reviewers disagree — inspect the finding detail and severity.
+- **Unique findings**: Only one reviewer caught it. May be a genuine catch or a false positive.
+- **Style findings**: Not bugs. The pipeline separates these from correctness issues.
+
+### Running the adjudicator comparison
+
+To compare Mistral vs Gemini as adjudicator on the same code:
+
+```bash
+# Baseline: Mistral adjudicates
+python3 council_orchestrator.py \
+  --file prompts/code_review/01_auth_middleware.py \
+  --mode code_review \
+  --rebuttal --refine \
+  --artifacts-dir results/current/code_review_mistral_adj/01_auth_middleware
+
+# Experiment: Gemini adjudicates, Mistral joins council
+python3 council_orchestrator.py \
+  --file prompts/code_review/01_auth_middleware.py \
+  --mode code_review_gemini_adj \
+  --rebuttal --refine \
+  --artifacts-dir results/current/code_review_gemini_adj/01_auth_middleware
+```
+
+Compare: disputed count, severity distribution, strongest/weakest, verdict stability.
+
+---
+
+## Adding a New Mode
+
+1. Define the mode config dict in `council_modes.py`:
+   - Axes: list of (name, description) tuples
+   - Axis weights: dict of axis_name -> weight
+   - Phase 1, Phase 2, axis, and verdict system prompts
+   - Verdict classifier function
+   - Input type ("jsonl" or "code")
+   - Compliance penalty, consensus toggle
+   - Optionally: adjudicator_model and council_models
+2. Register it in the `MODES` dict in `council_modes.py`
+3. Add UI support in `webapp.py` (mode selector) and `static/index.html`
+4. Run a benchmark batch to validate verdict classification
+5. Generate mode-specific aggregate to confirm mode separation in reporting
+
+### Key constraint
+
+Do not reuse one mode's rubric for a different task. Code review, legal analysis, and stress testing are judged by different axes. If you need different axes, you need a new mode.
+
+---
+
 ## Adding a New Council Model
 
 1. Add the API caller function in `council_basic.py` with 120s timeout and 3 retries with exponential backoff.
@@ -152,12 +216,15 @@ If a question doesn't match any keywords, it appears under "unknown." This fallb
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| Consensus says "No consensus label extracted" | Mistral adjudicator call failed or timed out | Check Mistral logs; rerun |
+| Consensus says "No consensus label extracted" | Adjudicator call failed or timed out | Check adjudicator logs; rerun |
 | All scores identical across models | Axis cascade bug reintroduced | Verify axis scorer prompt does not contain "skipped low structural" logic |
 | Phase 1 flaws appear on wrong model | Cross-broadcast bug reintroduced | Verify Phase 1 annotations are per-model (one entry per reply) |
-| Same code_hash across "patched" runs | Webapp not restarted after code change | Restart Flask, confirm new code_hash in grouped output |
+| Same code_hash across "patched" runs | Webapp not restarted after code change | Restart Flask or rebuild Docker image, confirm new code_hash |
 | run_id is null or reset | run_id.txt missing or permissions issue | Check results/run_id.txt exists and is writable |
 | Model reply missing from run | API timeout with no retry | Confirm retry logic is wired for that model's API call |
+| Code review verdict says "clean" but findings exist | Classifier not reading phase2.merged_findings | Verify classifier receives phase2 kwarg |
+| SISTM and code review runs mixed in aggregate | Mode not set on run artifacts | Ensure `--mode` flag is passed; aggregator partitions by mode |
+| Adjudicator evaluating own output | Adjudicator model in council roster | Check mode config: adjudicator_model must not be in council_models |
 
 ---
 
@@ -165,7 +232,9 @@ If a question doesn't match any keywords, it appears under "unknown." This fallb
 
 - `results/legacy/` is the historical archive. Keep older mixed-era runs there.
 - `results/current/` is the stable benchmark corpus. Put new post-fix exports there.
+- `results/current/code_review/` is the code review benchmark corpus. Each test case gets its own subdirectory.
 - `results/run_id.txt` stays at the top level. Do not move it; the runner uses it directly.
+- Aggregate/report generation should target mode-specific paths. The aggregator partitions automatically when files contain mixed modes.
 - Generate the benchmark aggregate/report from `results/current/`, not from the combined `results/` tree.
 
 Example:

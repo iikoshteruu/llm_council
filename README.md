@@ -1,8 +1,45 @@
 # LLM Council
 
-A multi-model deliberation and evaluation pipeline that stress-tests LLM reasoning through adversarial debate, independent adjudication, and deterministic verdict classification.
+A multi-model deliberation and evaluation pipeline with mode-specific rubrics, configurable adjudication, and deterministic verdict classification.
 
-Three LLMs answer each question independently, deliberate through adversarial rebuttal and refinement rounds, and are then evaluated by an independent adjudicator across six quality axes. The pipeline produces a deterministic verdict with confidence classification -- not just analysis, but a final answer that survived deliberation.
+Multiple LLMs answer each question independently, deliberate through adversarial rebuttal and refinement rounds, and are then evaluated by an independent adjudicator across mode-specific quality axes. The pipeline produces a deterministic verdict with confidence classification -- not just analysis, but a final answer that survived deliberation.
+
+## Modes
+
+The pipeline engine is mode-agnostic. Each mode defines its own axes, scoring weights, adjudication prompts, verdict classifier, and input format. Modes are not prompt skins -- they are distinct evaluation rubrics.
+
+| Mode | Purpose | Axes | Verdict Types | Input |
+|------|---------|------|---------------|-------|
+| `sistm_stress` | Adversarial stress testing via SISTM | 6 (structural, empirical, asymmetry, rhetorical, frame, institutional) | unanimous / majority / contested / unstable | JSONL prompts |
+| `code_review` | Multi-model code review with findings-first verdict | 6 (bug ID, severity, evidence, fix quality, regression, scope) | confirmed / disputed / clean / inconclusive | Code paste |
+| `code_review_gemini_adj` | Code review with Gemini as adjudicator (experiment) | Same as code_review | Same as code_review | Code paste |
+
+### Mode architecture
+
+Each mode owns:
+- Input format and normalization
+- Phase 1 adjudication prompt (flaw/finding labeling)
+- Phase 2 adjudication prompt (merge/consensus/ranking)
+- Axis definitions and weights
+- Verdict classifier function
+- Verdict synthesis prompt
+- Compliance penalty
+- Adjudicator model and council roster
+
+Modes are defined in `council_modes.py`. Adding a new mode means defining a new config dict and registering it -- no pipeline code changes required.
+
+### Adjudicator configuration
+
+The adjudicator and council roster are configurable per mode:
+
+```python
+{
+    "adjudicator_model": "google",                    # Gemini adjudicates
+    "council_models": ["openai", "anthropic", "mistral"],  # Mistral joins council
+}
+```
+
+The adjudicator is automatically excluded from the council roster. A model never evaluates its own output.
 
 ## How this compares
 
@@ -12,30 +49,30 @@ Most multi-model systems either vote, merge, or have a chairman summarize. This 
 |---|---|---|---|---|
 | Adversarial rebuttal + refine | Yes -- models rebut, revise, position changes tracked | No -- peer review only, no revision | No -- scoring only | No |
 | Flip detection + provenance | Yes -- cited vs uncited flips, tracks which rebuttal caused the change | No | No | No |
-| Independent adjudicator | Yes -- separate model evaluates without participating | No -- chairman participates | No -- models score each other | Yes -- LLM-as-judge |
-| Flaw taxonomy | 11 labels (hedge, evasion, frame shift, abstraction, etc.) | No | No | No |
-| Deterministic weighted scoring | 6 axes with fixed weights + conviction bonus | No | Rubric-based but not deterministic | Elo-style ranking |
-| Verdict with confidence classification | Unanimous / majority / contested / unstable -- withholds when unstable | Chairman always synthesizes | Voting always produces winner | Ranking always produces order |
-| Cross-run analytics | Consensus stability, discriminative power, flip provenance aggregation | No | Leaderboard tracking | No |
-| Adversarial prompt methodology | SISTM -- structural inversions, forced binary, mechanism-required | General questions | General questions | Subjective tasks |
+| Independent adjudicator | Yes -- configurable per mode, never evaluates own output | No -- chairman participates | No -- models score each other | Yes -- LLM-as-judge |
+| Flaw taxonomy | 11 labels (SISTM) / 5 labels (code review) | No | No | No |
+| Multi-mode rubrics | Yes -- each mode has its own axes, weights, verdict logic | No | No | No |
+| Deterministic weighted scoring | Mode-specific axes with fixed weights + conviction bonus | No | Rubric-based but not deterministic | Elo-style ranking |
+| Verdict with confidence classification | Withholds when evidence is insufficient | Chairman always synthesizes | Voting always produces winner | Ranking always produces order |
+| Cross-run analytics | Consensus stability, discriminative power, flip provenance | No | Leaderboard tracking | No |
 | Conviction tracking | +2 held clean / 0 cited flip / -1 uncited flip | No | No | No |
 | Reverse-rebuttal diagnostics | A/B testing to detect recency bias vs genuine conviction | No | No | No |
 
 ## Pipeline
 
 ```
-Prompt --> Council (3+ LLMs answer independently)
-       --> Rebuttal (each model rebuts the others)
-       --> Refine (each model revises after seeing rebuttals)
-       --> Flip Detection (cited_rebuttal / uncited / no_change + source)
-       --> Phase 1 Adjudication (per-reply flaw labeling, 11 categories)
-       --> Phase 2 Adjudication (consensus extraction + ranking)
-       --> Axis Scoring (6 axes, deterministic weights)
-       --> Weighted Scoring + Conviction Bonus
-       --> Verdict (unanimous / majority / contested / unstable)
+Input --> Council (3+ LLMs respond independently)
+      --> Rebuttal (each model rebuts the others)
+      --> Refine (each model revises after seeing rebuttals)
+      --> Flip Detection (cited_rebuttal / uncited / no_change + source)
+      --> Phase 1 Adjudication (mode-specific labeling per reply/finding)
+      --> Phase 2 Adjudication (consensus/merge + ranking)
+      --> Axis Scoring (mode-specific axes, deterministic weights)
+      --> Weighted Scoring + Conviction Bonus
+      --> Verdict (mode-specific classification)
 ```
 
-The verdict is the terminal artifact. Discovery, deliberation, adjudication, verdict -- four stages, each building on the last. The system does not always produce an answer. When evidence is insufficient (multiple uncited flips, narrow margins), it classifies the result as unstable and declines to render.
+The verdict is the terminal artifact. Discovery, deliberation, adjudication, verdict -- four stages, each building on the last. The system does not always produce an answer. When evidence is insufficient, it classifies the result accordingly and may decline to render.
 
 ## Quick start
 
@@ -55,24 +92,32 @@ pip install -r requirements.txt
 ```bash
 python3 webapp.py
 # Open http://localhost:5000
+# Select mode (SISTM Stress Test / Code Review) and domain
 ```
 
 ### Run via orchestrator
 
-The orchestrator runs the council, persists all artifact types, then regenerates the aggregate and HTML report:
-
 ```bash
+# SISTM stress test
 python3 council_orchestrator.py \
   --file prompts/prompts_finance.jsonl \
-  --domain finance \
+  --domain finance --mode sistm_stress \
   --rebuttal --refine \
   --artifacts-dir results/current
-```
 
-### Run via CLI
+# Code review
+python3 council_orchestrator.py \
+  --file prompts/code_review/01_auth_middleware.py \
+  --domain code_review --mode code_review \
+  --rebuttal --refine \
+  --artifacts-dir results/current/code_review/01_auth_middleware
 
-```bash
-python3 council_basic.py --file prompts/prompts_security.jsonl --domain security --artifacts-dir results/current
+# Code review with Gemini adjudicator (experiment)
+python3 council_orchestrator.py \
+  --file prompts/code_review/01_auth_middleware.py \
+  --domain code_review --mode code_review_gemini_adj \
+  --rebuttal --refine \
+  --artifacts-dir results/current/code_review_gemini_adj/01_auth_middleware
 ```
 
 ### Docker
@@ -83,7 +128,9 @@ docker compose up --build
 
 API keys are passed from the host environment via `.env` file. Results persist to the mounted `/data` volume.
 
-## Flaw taxonomy
+## SISTM Stress Test Mode
+
+### Flaw taxonomy
 
 Phase 1 adjudication labels each reply with zero or more flaws:
 
@@ -101,11 +148,7 @@ Phase 1 adjudication labels each reply with zero or more flaws:
 | premise_echo | Restates the prompt without introducing new mechanism |
 | noncompliant | General noncompliance with prompt constraints |
 
-Contradiction labels are verified by a dedicated checker. Premise echo is backstopped by a deterministic code-side heuristic. Length violation is cross-checked against the run-level compliance pass.
-
-## Scoring
-
-Six axes, deterministically weighted:
+### Scoring axes
 
 | Axis | Weight | Measures |
 |------|--------|----------|
@@ -116,14 +159,7 @@ Six axes, deterministically weighted:
 | frame_control | 0.5 | Holds own frame vs deferring |
 | institutional_guarding | 0.5 | Avoids institutional capture |
 
-Axes score independently -- no cascade. A low score on one axis does not floor others. Quality is scored blind to compliance; the compliance penalty (0.6x) is applied in code.
-
-**Conviction bonus:**
-- +2: No flip AND no flaw on original. Strong initial position held through deliberation.
-- 0: Flip with cited rebuttal (legitimate evidence-driven update). Or no flip but original had a flaw.
-- -1: Flip without citing rebuttal evidence (recency/compliance-driven).
-
-## Verdict classification
+### Verdict classification
 
 | Type | Condition | Confidence | Verdict rendered? |
 |------|-----------|------------|-------------------|
@@ -132,18 +168,7 @@ Axes score independently -- no cascade. A low score on one axis does not floor o
 | Contested | Narrow margin with flips | Moderate-Low | Yes (if moderate) |
 | Unstable | 2+ uncited flips | Low | No -- withheld |
 
-The verdict synthesizer starts from the strongest reply's reasoning, incorporates unflagged mechanisms from other replies, and strips any reasoning that was flagged as flawed. When confidence is too low, it returns `verdict: null` with a reason.
-
-## Cross-run analytics
-
-| Metric | What it measures |
-|--------|-----------------|
-| Consensus stability | Same question across N runs -- does the consensus label hold? (STABLE >= 80%, MIXED >= 50%, UNSTABLE < 50%) |
-| Discriminative power | Score spread across models per question -- which prompts actually separate model quality vs trivially unanimous |
-| Flip provenance | Aggregated: which model's rebuttals most frequently cause other models to flip |
-| Reverse-rebuttal A/B | Same prompts, reversed rebuttal order -- detects recency bias vs genuine conviction |
-
-## Domains
+### Domains
 
 24 domain-specific prompt sets:
 
@@ -155,22 +180,80 @@ The verdict synthesizer starts from the strongest reply's reasoning, incorporate
 | Science / energy | Nuclear energy, grid/storage, carbon removal, bio/med |
 | Economics / policy | Finance, monetary policy, labor/automation, housing, education, public health, food/agriculture |
 
-Each domain file contains 4 questions. See `prompts/` for all prompt sets.
+## Code Review Mode
+
+### Finding labels
+
+Phase 1 adjudication labels each finding:
+
+| Label | What it catches |
+|-------|----------------|
+| correct_finding | Reviewer identified a real bug with evidence |
+| false_positive | Flagged something that is not a bug |
+| missed_context | Finding ignores context that changes the assessment |
+| wrong_severity | Bug is real but severity is over/under-stated |
+| style_not_bug | Flagged a style preference, not a correctness issue |
+
+### Scoring axes
+
+| Axis | Weight | Measures |
+|------|--------|----------|
+| bug_identification | 2.0 | Real bugs found vs false positives |
+| severity_accuracy | 1.5 | Proportionate severity relative to actual impact |
+| evidence_quality | 2.0 | Cites specific lines, patterns, execution paths |
+| fix_quality | 1.5 | Fix is correct, minimal, targeted |
+| regression_awareness | 1.0 | Considers side effects of the fix |
+| scope_discipline | 0.5 | Stays on bugs vs style/refactoring |
+
+### Verdict classification
+
+| Type | Condition | Confidence | Verdict rendered? |
+|------|-----------|------------|-------------------|
+| Confirmed | Reviewers agree on findings | High-Moderate | Yes |
+| Disputed | Reviewers disagree on key findings | Moderate-Low | Yes (if moderate) |
+| Clean | No bugs found | High | Yes |
+| Inconclusive | Mixed signals | Low | No -- withheld |
+
+Findings are the unit of evaluation, not replies. Phase 2 merges findings across reviewers, deduplicates, and flags disagreements. The verdict includes `findings_count`, `confirmed_bugs`, and `disputed` counts.
+
+### Code review prompts
+
+Test code files are in `prompts/code_review/`. Each file is a self-contained code snippet with realistic bugs at varying severity levels.
+
+## Shared mechanics
+
+### Conviction bonus
+
+Applied identically across all modes:
+- +2: No flip AND no flaw on original. Strong initial position held through deliberation.
+- 0: Flip with cited rebuttal (legitimate evidence-driven update). Or no flip but original had a flaw.
+- -1: Flip without citing rebuttal evidence (recency/compliance-driven).
+
+### Cross-run analytics
+
+| Metric | What it measures |
+|--------|-----------------|
+| Consensus stability | Same question across N runs -- does the consensus/verdict hold? |
+| Discriminative power | Score spread across models per question |
+| Flip provenance | Which model's rebuttals most frequently cause flips |
+| Reverse-rebuttal A/B | Detects recency bias vs genuine conviction |
+
+Aggregation is mode-aware -- SISTM and code review runs never mix in the same metric tables.
 
 ## Analysis tools
 
 | Tool | Purpose |
 |------|---------|
-| `council_aggregator.py` | Cross-run per-model statistics with all analytics above |
+| `council_aggregator.py` | Cross-run per-model statistics, mode-partitioned |
 | `council_compare.py` | A/B comparison of normal vs reverse-rebuttal runs |
 | `council_report.py` | Self-contained HTML report from aggregation data |
-| `council_orchestrator.py` | End-to-end: run council, persist artifacts, regenerate aggregate + report |
+| `council_orchestrator.py` | End-to-end: run, artifacts, aggregate, report |
 
 ## Output formats
 
 All artifacts are written server-side when `--artifacts-dir` is set:
 
-- `run_{id}_raw.json` -- full pipeline output
+- `run_{id}_raw.json` -- full pipeline output (includes mode field)
 - `grouped_run_{id}.json` -- structured, question-level export with verdict
 - `summary_run_{id}.json` -- lightweight stance/verdict overview
 - `council_replies_run_{id}.ndjson` -- flat per-reply rows
@@ -184,20 +267,33 @@ All artifacts are written server-side when `--artifacts-dir` is set:
 | `OPENAI_API_KEY` | Yes | GPT-4.1 |
 | `ANTHROPIC_API_KEY` | Yes | Claude Opus |
 | `GOOGLE_API_KEY` | Yes | Gemini Flash |
-| `MISTRAL_API_KEY` | Yes | Adjudicator |
+| `MISTRAL_API_KEY` | Yes | Adjudicator (default) / council member |
 | `XAI_API_KEY` | Optional | Grok |
 | `RUN_REBUTTAL` | Optional | Enable rebuttal round (0/1) |
 | `RUN_REFINE` | Optional | Enable refine/flip round (0/1) |
-| `COUNCIL_MODELS` | Optional | Comma-separated model roster (default: openai,anthropic,google) |
+| `COUNCIL_MODELS` | Optional | Default council roster (default: openai,anthropic,google) |
+| `COUNCIL_MODE` | Optional | Default mode (default: sistm_stress) |
 | `COUNCIL_WEB_API_KEY` | Optional | API key for /api/run endpoint |
 | `COUNCIL_ARTIFACTS_DIR` | Optional | Directory for server-side artifact output |
 
-All system prompts (phase 1, phase 2, axis, flip, rebuttal, refine, verdict) are overridable via environment variables. See `council_basic.py` for defaults.
+All system prompts are overridable via environment variables. Mode-specific prompts take precedence. See `council_modes.py` for mode definitions and `council_basic.py` for defaults.
+
+## Adding a new mode
+
+1. Define the mode config in `council_modes.py`:
+   - Axes, weights, phase 1/2/axis/verdict prompts
+   - Verdict classifier function
+   - Input type, compliance penalty, consensus toggle
+   - Optionally: adjudicator_model and council_models
+2. Register it in the `MODES` dict
+3. Add UI support in `webapp.py` and `static/index.html`
+4. Run a benchmark batch to validate verdict classification
+5. Generate mode-specific aggregate and report to confirm separation
 
 ## Documentation
 
-- [System Reference](docs/COUNCIL_SYSTEM.md) -- architecture, scoring, flaw taxonomy, known model behaviors
-- [Run Book](docs/COUNCIL_RUNBOOK.md) -- operational guide, troubleshooting, adding domains/models
+- [System Reference](docs/COUNCIL_SYSTEM.md) -- architecture, modes, scoring, flaw taxonomy, known model behaviors
+- [Run Book](docs/COUNCIL_RUNBOOK.md) -- operational guide, troubleshooting, adding domains/models/modes
 
 ## License
 
