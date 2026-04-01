@@ -305,6 +305,14 @@ Use:
 - Effect: dashboard now serves the correct aggregate for the active mode instead of relying on whichever aggregate file happened to be present
 - Comparability: no scoring change; dashboard interpretation is now mode-correct
 
+## 2026-04-01 — Dashboard Switched To Mode-Specific Aggregates Only
+
+- Area: web/dashboard contract
+- Change: dashboard resolution no longer falls back to `council_aggregate.json` when a mode is requested; it now requires mode-specific aggregate/report files
+- Motivation: the generic aggregate file was acting as a crutch and could go stale or point at the wrong mode after mixed-mode runs
+- Effect: dashboard mode requests now either resolve the correct mode-specific output or fail cleanly
+- Comparability: no scoring change; removes ambiguous dashboard interpretation
+
 ## 2026-04-01 — Model Behavioral Profiles Published
 
 - Area: documentation/methodology

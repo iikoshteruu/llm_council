@@ -211,14 +211,7 @@ def resolve_dashboard_paths(requested_mode: str):
             report_path = os.path.join(BASE_DIR, f"council_report_{mode_name}.html")
             if os.path.isfile(aggregate_path):
                 return aggregate_path, report_path, mode_name
-
-        if os.path.isfile(generic_aggregate):
-            with open(generic_aggregate, "r", encoding="utf-8") as f:
-                aggregate = json.load(f)
-            actual_mode = aggregate.get("mode")
-            if actual_mode in dashboard_mode_candidates(requested_mode):
-                return generic_aggregate, generic_report, actual_mode
-        return generic_aggregate, generic_report, requested_mode
+        return None, None, requested_mode
 
     return generic_aggregate, generic_report, None
 
@@ -630,7 +623,7 @@ def api_dashboard():
 
     mode = (request.args.get("mode") or "").strip()
     aggregate_path, report_path, resolved_mode = resolve_dashboard_paths(mode)
-    if not os.path.isfile(aggregate_path):
+    if not aggregate_path or not os.path.isfile(aggregate_path):
         return jsonify({"error": "aggregate_missing"}), 404
     with open(aggregate_path, "r", encoding="utf-8") as f:
         aggregate = json.load(f)
