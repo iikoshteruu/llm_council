@@ -747,25 +747,26 @@ def main():
 
     modes_found = sorted(mode_files.keys()) if mode_files else ["sistm_stress"]
 
-    if len(modes_found) == 1:
-        # Single mode — behave exactly as before
-        mode = modes_found[0]
-        data = aggregate(files)
-        print_report(data)
-        if write_json:
-            export_json(data, "council_aggregate.json", mode=mode)
-    else:
-        # Multiple modes — aggregate and report separately
-        for mode in modes_found:
-            mode_file_list = mode_files[mode]
+    # Always write mode-specific files so dashboard paths are predictable.
+    # Also write a generic council_aggregate.json for backward compatibility.
+    for mode in modes_found:
+        mode_file_list = mode_files[mode]
+        if len(modes_found) > 1:
             print(f"\n{'=' * 80}")
             print(f"MODE: {mode.upper()} ({len(mode_file_list)} files)")
             print(f"{'=' * 80}\n")
-            data = aggregate(mode_file_list)
-            print_report(data)
-            if write_json:
-                outpath = f"council_aggregate_{mode}.json"
-                export_json(data, outpath, mode=mode)
+        data = aggregate(mode_file_list)
+        print_report(data)
+        if write_json:
+            # Always write mode-specific file
+            outpath = f"council_aggregate_{mode}.json"
+            export_json(data, outpath, mode=mode)
+
+    # Write generic file from the last (or only) mode for backward compat
+    if write_json and modes_found:
+        last_mode = modes_found[-1]
+        last_data = aggregate(mode_files[last_mode])
+        export_json(last_data, "council_aggregate.json", mode=last_mode)
 
 
 if __name__ == "__main__":
