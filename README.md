@@ -24,6 +24,8 @@ The dashboard shows aggregate model performance, axis scores, flip behavior, dom
 
 ![Dashboard — discriminative power and consensus stability](docs/images/dashboard_analytics.png)
 
+![Dashboard — code review mode](docs/images/dashboard_code_review.png)
+
 ## Architecture
 
 The pipeline is a four-stage process. Each stage builds on the last, and the system is designed so that no stage can be skipped or faked.
