@@ -14,12 +14,15 @@ import json
 import threading
 import time
 import uuid
+import glob
 from flask import Flask, request, send_from_directory, jsonify, send_file, Response, stream_with_context
 from council_modes import get_mode
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 COUNCIL_SCRIPT = os.path.join(BASE_DIR, "council_basic.py")
+AGGREGATOR_SCRIPT = os.path.join(BASE_DIR, "council_aggregator.py")
+REPORT_SCRIPT = os.path.join(BASE_DIR, "council_report.py")
 COUNCIL_TIMEOUT = int(os.getenv("COUNCIL_TIMEOUT", "600"))
 COUNCIL_WEB_API_KEY = os.getenv("COUNCIL_WEB_API_KEY", "").strip()
 COUNCIL_ARTIFACTS_DIR = os.getenv("COUNCIL_ARTIFACTS_DIR", os.path.join(BASE_DIR, "results", "current"))
@@ -115,6 +118,36 @@ def run_council_with_file(prompt_file: str, run_rebuttal=False, run_refine=False
         timeout=COUNCIL_TIMEOUT,
     )
     return proc.returncode, proc.stdout, proc.stderr
+
+
+def refresh_dashboard_outputs(artifacts_root: str):
+    """Regenerate aggregate/report files from the full artifacts corpus."""
+    agg_proc = subprocess.run(
+        ["python3", AGGREGATOR_SCRIPT, artifacts_root, "--json"],
+        cwd=BASE_DIR,
+        capture_output=True,
+        text=True,
+        timeout=COUNCIL_TIMEOUT,
+    )
+    if agg_proc.returncode != 0:
+        raise RuntimeError(agg_proc.stderr.strip() or agg_proc.stdout.strip() or "aggregator failed")
+
+    aggregate_paths = sorted(glob.glob(os.path.join(BASE_DIR, "council_aggregate*.json")))
+    if not aggregate_paths:
+        raise RuntimeError("aggregator did not produce any council_aggregate*.json files")
+
+    for aggregate_path in aggregate_paths:
+        base = os.path.splitext(os.path.basename(aggregate_path))[0]
+        report_name = base.replace("aggregate", "report") + ".html"
+        report_proc = subprocess.run(
+            ["python3", REPORT_SCRIPT, aggregate_path, "-o", os.path.join(BASE_DIR, report_name)],
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            timeout=COUNCIL_TIMEOUT,
+        )
+        if report_proc.returncode != 0:
+            raise RuntimeError(report_proc.stderr.strip() or report_proc.stdout.strip() or f"report failed for {aggregate_path}")
 
 
 def add_job_event(job_id, event_type, data):
@@ -221,6 +254,14 @@ def _run_council_job(job_id, prompt_file, run_rebuttal, run_refine, run_reverse_
         except Exception:
             result = {"error": "parse_failed", "raw": stdout}
         stderr_text = "\n".join(stderr_chunks)
+        refresh_error = None
+        if returncode == 0 and isinstance(result, dict) and not result.get("error"):
+            try:
+                refresh_dashboard_outputs(COUNCIL_ARTIFACTS_DIR)
+            except Exception as e:
+                refresh_error = str(e)
+                add_job_event(job_id, "stderr", {"line": f"[dashboard-refresh] {refresh_error}"})
+                stderr_text = f"{stderr_text}\n[dashboard-refresh] {refresh_error}".strip()
         set_job_state(
             job_id,
             status="completed" if returncode == 0 else "failed",
@@ -361,6 +402,11 @@ def api_run():
             data = json.loads(out)
         except Exception:
             data = {"error": "parse_failed", "raw": out}
+        if code == 0 and isinstance(data, dict) and not data.get("error"):
+            try:
+                refresh_dashboard_outputs(COUNCIL_ARTIFACTS_DIR)
+            except Exception as e:
+                err = f"{err}\n[dashboard-refresh] {e}".strip()
         return jsonify(
             {
                 "returncode": code,
