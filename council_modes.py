@@ -268,8 +268,9 @@ CODE_REVIEW_GEMINI_ADJ = {
 
 MODES = {
     "sistm_stress": SISTM_MODE,
-    "code_review": CODE_REVIEW_MODE,
-    "code_review_gemini_adj": CODE_REVIEW_GEMINI_ADJ,
+    "code_review": CODE_REVIEW_GEMINI_ADJ,  # Gemini adjudicator is the default for code review
+    "code_review_mistral_adj": CODE_REVIEW_MODE,  # Mistral adjudicator kept as comparison baseline
+    "code_review_gemini_adj": CODE_REVIEW_GEMINI_ADJ,  # explicit alias
 }
 
 DEFAULT_MODE = "sistm_stress"
