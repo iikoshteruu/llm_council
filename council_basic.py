@@ -192,11 +192,78 @@ AXES = [
 ]
 local_ollama = os.getenv("LOCAL_OLLAMA", "")
 _adj_call = None  # set in main() to the mode's adjudicator caller
+_adj_logger = None  # set in main() to the AdjudicatorLogger instance
 
-def adjudicate(history):
-    """Call the adjudicator — uses mode-configured caller or falls back to call_local."""
+
+class AdjudicatorLogger:
+    """Structured logging for all adjudication calls."""
+
+    def __init__(self, log_dir, run_id, mode, domain, adj_model, council_roster):
+        os.makedirs(log_dir, exist_ok=True)
+        self.log_path = os.path.join(log_dir, f"run_{run_id}_adjudicator.jsonl")
+        self.run_id = run_id
+        self.mode = mode
+        self.domain = domain
+        self.adj_model = adj_model
+        self.council_roster = council_roster
+        # Write header entry
+        self._write({
+            "entry_type": "run_header",
+            "run_id": run_id,
+            "mode": mode,
+            "domain": domain,
+            "adjudicator_model": adj_model,
+            "council_roster": council_roster,
+            "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        })
+
+    def log(self, call_type, raw_response, parsed_ok, **kwargs):
+        entry = {
+            "entry_type": "adjudication_call",
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "call_type": call_type,
+            "raw_response": raw_response[:2000] if isinstance(raw_response, str) else str(raw_response)[:2000],
+            "parsed_ok": parsed_ok,
+        }
+        entry.update(kwargs)
+        self._write(entry)
+
+    def _write(self, entry):
+        try:
+            with open(self.log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
+
+
+def adjudicate(history, call_type=None, **log_kwargs):
+    """Call the adjudicator — uses mode-configured caller or falls back to call_local.
+
+    Logs every call when _adj_logger is set.
+    """
     caller = _adj_call or call_local
-    return caller(history)
+    start = time.time()
+    raw = caller(history)
+    latency_ms = int((time.time() - start) * 1000)
+
+    if _adj_logger and call_type:
+        # Estimate input tokens (rough: 4 chars per token)
+        input_text = " ".join(m.get("content", "") for m in history if isinstance(m, dict))
+        input_tokens_approx = len(input_text) // 4
+
+        parsed = parse_adjudicator_json(raw)
+        parsed_ok = not (isinstance(parsed, dict) and parsed.get("error") == "parse_failed")
+
+        _adj_logger.log(
+            call_type=call_type,
+            raw_response=raw,
+            parsed_ok=parsed_ok,
+            latency_ms=latency_ms,
+            input_tokens_approx=input_tokens_approx,
+            **log_kwargs,
+        )
+
+    return raw
 
 
 def _model_registry():
@@ -291,7 +358,7 @@ def majority_consensus(question_text, answers):
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_prompt},
     ]
-    raw = adjudicate(hist)
+    raw = adjudicate(hist, call_type="consensus")
     parsed = parse_adjudicator_json(raw)
     if isinstance(parsed, dict):
         # accept any casing of "consensus" key
@@ -456,7 +523,7 @@ def council_verdict(question_text, q_replies, consensus_text, mode_cfg=None, pha
         {"role": "system", "content": local_system_verdict},
         {"role": "user", "content": user_prompt},
     ]
-    raw = adjudicate(hist)
+    raw = adjudicate(hist, call_type="verdict", verdict_type=verdict_type, confidence=confidence)
     parsed = parse_adjudicator_json(raw)
 
     verdict_text = None
@@ -708,7 +775,7 @@ def contradiction_check(reply_text: str) -> bool:
         {"role": "system", "content": local_system_contradiction_check},
         {"role": "user", "content": reply_text},
     ]
-    raw = adjudicate(hist)
+    raw = adjudicate(hist, call_type="contradiction_check")
     parsed = parse_adjudicator_json(raw)
     if isinstance(parsed, dict) and "contradiction" in parsed:
         return bool(parsed["contradiction"]), parsed.get("reason", "")
@@ -775,7 +842,7 @@ def score_axis(question_text, reply_obj, phase1_ann, phase2_ann, axis_name, axis
     sys_msg = local_system_axis.replace("AXIS", axis_name).replace("AXIS_DESC", axis_desc)
     user_msg = json.dumps(base_user, ensure_ascii=False)
     hist = [{"role": "system", "content": sys_msg}, {"role": "user", "content": user_msg}]
-    raw = adjudicate(hist)
+    raw = adjudicate(hist, call_type="axis_scoring", axis_name=axis_name, model_evaluated=reply_obj.get("model"))
     parsed = parse_adjudicator_json(raw)
     if isinstance(parsed, dict) and "score" in parsed:
         if parsed.get("reason") == "parse_failed":
@@ -873,8 +940,20 @@ def main():
     mode_council_models = mode_cfg.get("council_models")
 
     # Set module-level adjudication function so helpers can use it
-    global _adj_call
+    global _adj_call, _adj_logger
     _adj_call = adj_caller
+
+    # Initialize adjudicator logger
+    log_dir = os.path.join(artifacts_dir or os.path.join(BASE_DIR, "results", "current"), "logs")
+    council_roster_names = [cfg["name"] for _, cfg in iter_council_models(mode_council_models=mode_council_models, adjudicator_model=adj_model_id) if cfg["enabled"]]
+    _adj_logger = AdjudicatorLogger(
+        log_dir=log_dir,
+        run_id=run_id,
+        mode=mode_name,
+        domain=run_domain,
+        adj_model=adj_model_name,
+        council_roster=council_roster_names,
+    )
 
     if args.file:
         with open(args.file) as f:
@@ -1033,7 +1112,7 @@ def main():
                                 {"role": "system", "content": local_system_flip},
                                 {"role": "user", "content": json.dumps(flip_payload, ensure_ascii=False)},
                             ]
-                            flip_raw = adjudicate(hist_flip)
+                            flip_raw = adjudicate(hist_flip, call_type="flip_detection", question_index=q_idx+1, model_evaluated=name)
                             flip_parsed = parse_adjudicator_json(flip_raw)
                             if isinstance(flip_parsed, dict) and "flip" in flip_parsed:
                                 # deterministic flip_source fallback if adjudicator omits it
@@ -1073,7 +1152,7 @@ def main():
                         f"{name} [{comp}]: {outs[q_idx]['text']}",
                     ])
                     hist_p1 = [{"role": "system", "content": local_system_phase1}, {"role": "user", "content": block_p1}]
-                    single_raw = adjudicate(hist_p1)
+                    single_raw = adjudicate(hist_p1, call_type="phase1", question_index=q_idx+1, model_evaluated=name)
                     ann_raw_parts.append(f"{name}: {single_raw}")
                     parsed = parse_adjudicator_json(single_raw)
                     # normalize single-object response to list format
@@ -1101,7 +1180,7 @@ def main():
                     lines_p2.append(f"{name} [{comp}]: {outs[q_idx]['text']}")
             block_p2 = "\n".join(lines_p2)
             hist_p2 = [{"role": "system", "content": local_system_phase2}, {"role": "user", "content": block_p2}]
-            out_raw = adjudicate(hist_p2)
+            out_raw = adjudicate(hist_p2, call_type="phase2", question_index=q_idx+1)
             out_parsed = parse_adjudicator_json(out_raw)
             adjudications.append(f"Question {q_idx+1}: {out_raw}")
             if not quiet_json:

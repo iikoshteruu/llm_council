@@ -44,7 +44,31 @@ This runs the council, writes all artifacts, regenerates the aggregate, and rege
 
 - NDJSON: raw pipeline output, one line per model per question. Use for aggregation.
 - grouped.json: structured export with nested replies. Use for analysis and comparison.
-- summary.json: lightweight stance/flip overview. Use for quick review.
+- summary.json: lightweight stance/verdict overview. Use for quick review.
+- Adjudicator logs: `logs/run_{id}_adjudicator.jsonl` — one JSON line per adjudication call.
+
+### Adjudicator logs
+
+Every adjudication call (phase 1, phase 2, axis scoring, verdict, flip detection, consensus, contradiction check) is logged to `logs/run_{id}_adjudicator.jsonl` inside the artifacts directory.
+
+Each log file starts with a header entry containing run_id, mode, domain, adjudicator model, and council roster. Each subsequent entry records:
+
+| Field | Description |
+|-------|-------------|
+| call_type | phase1, phase2, axis_scoring, verdict, flip_detection, consensus, contradiction_check |
+| model_evaluated | Which council member's reply is being adjudicated |
+| axis_name | Which axis (for axis_scoring calls) |
+| question_index | Which question in the run |
+| raw_response | First 2000 chars of the adjudicator's response |
+| parsed_ok | Whether JSON parsing succeeded or fell back |
+| latency_ms | Round-trip time for the adjudicator call |
+| input_tokens_approx | Estimated input tokens (rough, for cost tracking) |
+
+Use these logs to:
+- Diagnose parse failures without rerunning the pipeline
+- Track adjudicator latency by call type
+- Attribute API costs per call type
+- Compare adjudicator behavior across modes or model swaps
 
 ---
 
@@ -253,7 +277,7 @@ The following are mode-agnostic and do not need to be redefined:
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| Consensus says "No consensus label extracted" | Adjudicator call failed or timed out | Run without `JSON_ONLY` to see adjudicator stderr output; check API key and connectivity; rerun |
+| Consensus says "No consensus label extracted" | Adjudicator call failed or timed out | Check the adjudicator log at `results/current/logs/run_{id}_adjudicator.jsonl` for raw responses, parse failures, and latency; check API key and connectivity; rerun |
 | All scores identical across models | Axis cascade bug reintroduced | Verify axis scorer prompt does not contain "skipped low structural" logic |
 | Phase 1 flaws appear on wrong model | Cross-broadcast bug reintroduced | Verify Phase 1 annotations are per-model (one entry per reply) |
 | Same code_hash across "patched" runs | Webapp not restarted after code change | Restart Flask or rebuild Docker image, confirm new code_hash |
