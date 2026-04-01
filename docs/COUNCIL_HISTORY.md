@@ -297,6 +297,14 @@ Use:
 - Effect: the mode boundary is now visible and usable in the UI
 - Comparability: no scoring change
 
+## 2026-04-01 — Dashboard Mode Routing Fixed
+
+- Area: web/dashboard
+- Change: dashboard requests now include the active council mode, and backend dashboard resolution maps mode aliases to the correct mode-specific aggregate/report outputs
+- Motivation: the dashboard initially read a single aggregate view, which broke `code_review` visibility when `SISTM` and code-review outputs coexisted
+- Effect: dashboard now serves the correct aggregate for the active mode instead of relying on whichever aggregate file happened to be present
+- Comparability: no scoring change; dashboard interpretation is now mode-correct
+
 ## 2026-04-01 — Model Behavioral Profiles Published
 
 - Area: documentation/methodology

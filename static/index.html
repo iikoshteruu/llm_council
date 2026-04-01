@@ -944,7 +944,8 @@ async function loadDashboard() {
   $('dashboardLoading').style.display = 'block';
   $('dashboardContent').style.display = 'none';
   try {
-    const res = await fetch('/api/dashboard', { headers: authHeaders() });
+    const mode = encodeURIComponent(activeCouncilMode());
+    const res = await fetch(`/api/dashboard?mode=${mode}`, { headers: authHeaders() });
     if (!res.ok) {
       $('dashboardLoading').innerHTML = '<div>No aggregate data available. Run the aggregator first.</div>';
       return;

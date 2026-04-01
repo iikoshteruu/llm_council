@@ -189,6 +189,40 @@ def refresh_dashboard_outputs(artifacts_root: str):
             raise RuntimeError(report_proc.stderr.strip() or report_proc.stdout.strip() or f"report failed for {aggregate_path}")
 
 
+def dashboard_mode_candidates(requested_mode: str):
+    if not requested_mode:
+        return []
+    aliases = {
+        "code_review": ["code_review_gemini_adj", "code_review", "code_review_mistral_adj"],
+        "code_review_gemini_adj": ["code_review_gemini_adj", "code_review"],
+        "code_review_mistral_adj": ["code_review_mistral_adj", "code_review"],
+        "sistm_stress": ["sistm_stress"],
+    }
+    return aliases.get(requested_mode, [requested_mode])
+
+
+def resolve_dashboard_paths(requested_mode: str):
+    generic_aggregate = os.path.join(BASE_DIR, "council_aggregate.json")
+    generic_report = os.path.join(BASE_DIR, "council_report.html")
+
+    if requested_mode:
+        for mode_name in dashboard_mode_candidates(requested_mode):
+            aggregate_path = os.path.join(BASE_DIR, f"council_aggregate_{mode_name}.json")
+            report_path = os.path.join(BASE_DIR, f"council_report_{mode_name}.html")
+            if os.path.isfile(aggregate_path):
+                return aggregate_path, report_path, mode_name
+
+        if os.path.isfile(generic_aggregate):
+            with open(generic_aggregate, "r", encoding="utf-8") as f:
+                aggregate = json.load(f)
+            actual_mode = aggregate.get("mode")
+            if actual_mode in dashboard_mode_candidates(requested_mode):
+                return generic_aggregate, generic_report, actual_mode
+        return generic_aggregate, generic_report, requested_mode
+
+    return generic_aggregate, generic_report, None
+
+
 def add_job_event(job_id, event_type, data):
     with RUN_JOBS_LOCK:
         job = RUN_JOBS.get(job_id)
@@ -595,22 +629,13 @@ def api_dashboard():
         return auth_error
 
     mode = (request.args.get("mode") or "").strip()
-    if mode:
-        aggregate_path = os.path.join(BASE_DIR, f"council_aggregate_{mode}.json")
-        report_path = os.path.join(BASE_DIR, f"council_report_{mode}.html")
-        if not os.path.isfile(aggregate_path):
-            aggregate_path = os.path.join(BASE_DIR, "council_aggregate.json")
-        if not os.path.isfile(report_path):
-            report_path = os.path.join(BASE_DIR, "council_report.html")
-    else:
-        aggregate_path = os.path.join(BASE_DIR, "council_aggregate.json")
-        report_path = os.path.join(BASE_DIR, "council_report.html")
+    aggregate_path, report_path, resolved_mode = resolve_dashboard_paths(mode)
     if not os.path.isfile(aggregate_path):
         return jsonify({"error": "aggregate_missing"}), 404
     with open(aggregate_path, "r", encoding="utf-8") as f:
         aggregate = json.load(f)
     return jsonify({
-        "mode": mode or aggregate.get("mode"),
+        "mode": resolved_mode or aggregate.get("mode"),
         "aggregate": aggregate,
         "report_exists": os.path.isfile(report_path),
         "report_path": os.path.basename(report_path) if os.path.isfile(report_path) else None,
