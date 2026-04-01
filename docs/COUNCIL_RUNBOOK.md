@@ -33,6 +33,9 @@ This runs the council, writes all artifacts, regenerates the aggregate, and rege
 1. Start the webapp (Flask). Confirm run_id increments from the previous run.
 2. Select a domain prompt set from the dropdown (or paste custom JSONL).
 3. Check both "Run rebuttal" and "Run refine/flip" checkboxes.
+   - **Rebuttal**: Each model receives the other models' answers and writes a one-sentence rebuttal targeting the strongest point it disputes. This is the adversarial pressure step — without it, models answer in isolation and the council produces scores but no deliberation.
+   - **Refine / Flip**: Each model revises its own answer after seeing the rebuttals it received. The pipeline then detects whether the model changed position (flip) and whether that change cited evidence from a rebuttal (cited) or not (uncited). This is what produces conviction tracking, flip provenance, and the behavioral signal that separates evidence-driven updates from recency-driven compliance. Without refine, there is no flip detection and no conviction bonus.
+   - **Reverse rebuttal order** (optional): Presents rebuttals in reversed sequence. Used as a diagnostic to detect whether flips are order-dependent (recency bias) or content-dependent (genuine conviction). Run the same prompt set in both normal and reversed order, then compare with `council_compare.py`.
 4. Click Run. Wait for completion.
 5. Artifacts are written server-side to `COUNCIL_ARTIFACTS_DIR`. Download buttons are also available as fallback.
 6. Verify: check that consensus labels and verdict are populated in the output.
