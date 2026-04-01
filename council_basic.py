@@ -191,10 +191,17 @@ AXES = [
     ("institutional_guarding", "Did the reply avoid protecting an institution/image instead of answering?"),
 ]
 local_ollama = os.getenv("LOCAL_OLLAMA", "")
+_adj_call = None  # set in main() to the mode's adjudicator caller
+
+def adjudicate(history):
+    """Call the adjudicator — uses mode-configured caller or falls back to call_local."""
+    caller = _adj_call or call_local
+    return caller(history)
 
 
-def iter_council_models():
-    registry = {
+def _model_registry():
+    """Full registry of all available models (council + adjudicator candidates)."""
+    return {
         "openai": {
             "name": "gpt-4.1",
             "caller": call_openai,
@@ -219,13 +226,46 @@ def iter_council_models():
             "enabled": bool(xai_key and xai_model),
             "missing": "Grok: skipped (no XAI_API_KEY or XAI_MODEL)",
         },
+        "mistral": {
+            "name": local_model,
+            "caller": call_local,
+            "enabled": bool(local_base and local_model),
+            "missing": "Mistral: missing LOCAL_OPENAI_BASE or LOCAL_MODEL",
+        },
     }
-    for model_id in enabled_council_models:
+
+
+def iter_council_models(mode_council_models=None, adjudicator_model=None):
+    registry = _model_registry()
+    roster = mode_council_models or enabled_council_models
+    for model_id in roster:
+        # Never include the adjudicator in the council
+        if adjudicator_model and model_id == adjudicator_model:
+            continue
         cfg = registry.get(model_id)
         if not cfg:
-            print(f"Council: unknown model id '{model_id}' in COUNCIL_MODELS", file=sys.stderr)
+            print(f"Council: unknown model id '{model_id}' in roster", file=sys.stderr)
             continue
         yield model_id, cfg
+
+
+def get_adjudicator_caller(adjudicator_model=None):
+    """Return the caller function for the adjudicator model.
+
+    When adjudicator_model is None or 'mistral', uses call_local (default).
+    When set to another model (e.g. 'google'), uses that model's caller.
+    """
+    if not adjudicator_model or adjudicator_model == "mistral":
+        return call_local, local_model
+    registry = _model_registry()
+    cfg = registry.get(adjudicator_model)
+    if not cfg:
+        print(f"Adjudicator: unknown model '{adjudicator_model}', falling back to local", file=sys.stderr)
+        return call_local, local_model
+    if not cfg["enabled"]:
+        print(f"Adjudicator: {cfg['missing']}, falling back to local", file=sys.stderr)
+        return call_local, local_model
+    return cfg["caller"], cfg["name"]
 
 def code_version():
     try:
@@ -251,7 +291,7 @@ def majority_consensus(question_text, answers):
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_prompt},
     ]
-    raw = call_local(hist)
+    raw = adjudicate(hist)
     parsed = parse_adjudicator_json(raw)
     if isinstance(parsed, dict):
         # accept any casing of "consensus" key
@@ -416,7 +456,7 @@ def council_verdict(question_text, q_replies, consensus_text, mode_cfg=None, pha
         {"role": "system", "content": local_system_verdict},
         {"role": "user", "content": user_prompt},
     ]
-    raw = call_local(hist)
+    raw = adjudicate(hist)
     parsed = parse_adjudicator_json(raw)
 
     verdict_text = None
@@ -668,7 +708,7 @@ def contradiction_check(reply_text: str) -> bool:
         {"role": "system", "content": local_system_contradiction_check},
         {"role": "user", "content": reply_text},
     ]
-    raw = call_local(hist)
+    raw = adjudicate(hist)
     parsed = parse_adjudicator_json(raw)
     if isinstance(parsed, dict) and "contradiction" in parsed:
         return bool(parsed["contradiction"]), parsed.get("reason", "")
@@ -735,7 +775,7 @@ def score_axis(question_text, reply_obj, phase1_ann, phase2_ann, axis_name, axis
     sys_msg = local_system_axis.replace("AXIS", axis_name).replace("AXIS_DESC", axis_desc)
     user_msg = json.dumps(base_user, ensure_ascii=False)
     hist = [{"role": "system", "content": sys_msg}, {"role": "user", "content": user_msg}]
-    raw = call_local(hist)
+    raw = adjudicate(hist)
     parsed = parse_adjudicator_json(raw)
     if isinstance(parsed, dict) and "score" in parsed:
         if parsed.get("reason") == "parse_failed":
@@ -827,6 +867,15 @@ def main():
     local_system_verdict = mode_cfg["verdict_prompt"]
     AXES = mode_cfg["axes"]
 
+    # Adjudicator and roster from mode config
+    adj_model_id = mode_cfg.get("adjudicator_model")
+    adj_caller, adj_model_name = get_adjudicator_caller(adj_model_id)
+    mode_council_models = mode_cfg.get("council_models")
+
+    # Set module-level adjudication function so helpers can use it
+    global _adj_call
+    _adj_call = adj_caller
+
     if args.file:
         with open(args.file) as f:
             try:
@@ -881,12 +930,15 @@ def main():
         "google": hist_google,
         "xai": hist_xai,
     }
-    for model_id, cfg in iter_council_models():
+    for model_id, cfg in iter_council_models(mode_council_models=mode_council_models, adjudicator_model=adj_model_id):
         if not cfg["enabled"]:
             print(cfg["missing"], file=sys.stderr)
             continue
-        run_model(cfg["name"], cfg["caller"], histories[model_id])
-    if local_base and local_model:
+        hist = histories.get(model_id)
+        if hist is None:
+            hist = []
+        run_model(cfg["name"], cfg["caller"], hist)
+    if adj_caller:
         # adjudicate per-question in two phases to reduce load
         num_q = len(turns)
         adjudications = []
@@ -904,7 +956,7 @@ def main():
                 progress("rebuttal_start", run_id=run_id, question_index=q_idx + 1)
                 originals = {}
                 for name, outs in results.items():
-                    if name == local_model or name.startswith("_"):
+                    if name == adj_model_name or name.startswith("_"):
                         continue
                     if not isinstance(outs, list):
                         continue
@@ -940,7 +992,7 @@ def main():
             if run_refine and run_rebuttal and rebuttals:
                 progress("refine_start", run_id=run_id, question_index=q_idx + 1)
                 for name, outs in results.items():
-                    if name == local_model or name.startswith("_"):
+                    if name == adj_model_name or name.startswith("_"):
                         continue
                     if not isinstance(outs, list):
                         continue
@@ -981,7 +1033,7 @@ def main():
                                 {"role": "system", "content": local_system_flip},
                                 {"role": "user", "content": json.dumps(flip_payload, ensure_ascii=False)},
                             ]
-                            flip_raw = call_local(hist_flip)
+                            flip_raw = adjudicate(hist_flip)
                             flip_parsed = parse_adjudicator_json(flip_raw)
                             if isinstance(flip_parsed, dict) and "flip" in flip_parsed:
                                 # deterministic flip_source fallback if adjudicator omits it
@@ -1009,7 +1061,7 @@ def main():
             ann_raw_parts = []
             progress("phase1_start", run_id=run_id, question_index=q_idx + 1)
             for name, outs in results.items():
-                if name == local_model or name.startswith("_"):
+                if name == adj_model_name or name.startswith("_"):
                     continue
                 if not isinstance(outs, list):
                     continue
@@ -1021,7 +1073,7 @@ def main():
                         f"{name} [{comp}]: {outs[q_idx]['text']}",
                     ])
                     hist_p1 = [{"role": "system", "content": local_system_phase1}, {"role": "user", "content": block_p1}]
-                    single_raw = call_local(hist_p1)
+                    single_raw = adjudicate(hist_p1)
                     ann_raw_parts.append(f"{name}: {single_raw}")
                     parsed = parse_adjudicator_json(single_raw)
                     # normalize single-object response to list format
@@ -1040,7 +1092,7 @@ def main():
             lines_p2 = [f"Question: {question_text}", "Phase1 annotations:", json.dumps(ann), "Replies:"]
             progress("phase2_start", run_id=run_id, question_index=q_idx + 1)
             for name, outs in results.items():
-                if name == local_model or name.startswith("_"):
+                if name == adj_model_name or name.startswith("_"):
                     continue
                 if not isinstance(outs, list):
                     continue
@@ -1049,16 +1101,16 @@ def main():
                     lines_p2.append(f"{name} [{comp}]: {outs[q_idx]['text']}")
             block_p2 = "\n".join(lines_p2)
             hist_p2 = [{"role": "system", "content": local_system_phase2}, {"role": "user", "content": block_p2}]
-            out_raw = call_local(hist_p2)
+            out_raw = adjudicate(hist_p2)
             out_parsed = parse_adjudicator_json(out_raw)
             adjudications.append(f"Question {q_idx+1}: {out_raw}")
             if not quiet_json:
-                print(f"{local_model} (adjudication q{q_idx+1}/{num_q}):", out_raw)
+                print(f"{adj_model_name} (adjudication q{q_idx+1}/{num_q}):", out_raw)
 
             # assemble question record
             q_replies = []
             for name, outs in results.items():
-                if name == local_model or name.startswith("_"):
+                if name == adj_model_name or name.startswith("_"):
                     continue
                 if not isinstance(outs, list):
                     continue
@@ -1137,7 +1189,7 @@ def main():
                 progress("verdict_start", run_id=run_id, question_index=q_idx + 1)
                 verdict_obj = council_verdict(question_text, q_replies, q_phase2_final.get("consensus", "") if isinstance(q_phase2_final, dict) else "", mode_cfg=mode_cfg, phase2=q_phase2_final)
                 if not quiet_json:
-                    print(f"{local_model} (verdict q{q_idx+1}/{num_q}):", verdict_obj.get("verdict", "")[:120])
+                    print(f"{adj_model_name} (verdict q{q_idx+1}/{num_q}):", verdict_obj.get("verdict", "")[:120])
             questions_out.append({
                 "question_index": q_idx + 1,
                 "question_text": question_text,
@@ -1151,11 +1203,9 @@ def main():
                 "verdict": verdict_obj,
             })
             progress("question_complete", run_id=run_id, question_index=q_idx + 1, strongest=strongest, weakest=weakest)
-        results[local_model] = "\n\n".join(adjudications)
-    elif local_base and not local_model:
-        print("Local: LOCAL_OPENAI_BASE set but LOCAL_MODEL missing", file=sys.stderr)
+        results[adj_model_name] = "\n\n".join(adjudications)
     else:
-        print("Local: skipped (no LOCAL_OPENAI_BASE)", file=sys.stderr)
+        print("Adjudicator: not configured", file=sys.stderr)
 
     # stamp domain on each question
     if run_domain:

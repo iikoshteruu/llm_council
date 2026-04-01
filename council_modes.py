@@ -127,6 +127,9 @@ SISTM_MODE = {
     "compliance_penalty": 0.6,
     "use_consensus": True,
     "input_type": "jsonl",
+    # adjudicator/roster: None = use defaults (LOCAL_MODEL / COUNCIL_MODELS env)
+    "adjudicator_model": None,
+    "council_models": None,
 }
 
 
@@ -245,6 +248,17 @@ CODE_REVIEW_MODE = {
     "compliance_penalty": 1.0,  # no compliance penalty for code review — no sentence limit
     "use_consensus": False,  # findings replace consensus
     "input_type": "code",
+    "adjudicator_model": None,  # default: Mistral (LOCAL_MODEL)
+    "council_models": None,     # default: COUNCIL_MODELS env
+}
+
+# Experiment variant: Gemini adjudicates, Mistral joins council
+CODE_REVIEW_GEMINI_ADJ = {
+    **CODE_REVIEW_MODE,
+    "name": "code_review_gemini_adj",
+    "label": "Code Review (Gemini Adjudicator)",
+    "adjudicator_model": "google",
+    "council_models": ["openai", "anthropic", "mistral"],
 }
 
 
@@ -255,6 +269,7 @@ CODE_REVIEW_MODE = {
 MODES = {
     "sistm_stress": SISTM_MODE,
     "code_review": CODE_REVIEW_MODE,
+    "code_review_gemini_adj": CODE_REVIEW_GEMINI_ADJ,
 }
 
 DEFAULT_MODE = "sistm_stress"
