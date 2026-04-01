@@ -184,10 +184,42 @@ Compare: disputed count, severity distribution, strongest/weakest, verdict stabi
 
 ## Adding a New Mode
 
+### What a mode owns
+
+The pipeline engine (council_basic.py) is mode-agnostic. It reads all mode-specific behavior from a config dict in `council_modes.py`. Every mode must define its own:
+
+- **Phase 1 prompt** — tells the adjudicator how to label each reply or finding. SISTM uses flaw labels (hedge, evasion, etc). Code review uses finding labels (correct_finding, false_positive, etc). A legal analysis mode would need its own label set. You cannot reuse one mode's phase 1 prompt for another — the labels, definitions, and evaluation criteria are fundamentally different.
+
+- **Phase 2 prompt** — tells the adjudicator how to merge or rank across replies. SISTM extracts consensus and picks strongest/weakest. Code review merges findings, deduplicates, and flags disputed vs confirmed. Each mode needs its own phase 2 prompt because the unit of evaluation differs (positions vs findings vs arguments).
+
+- **Axis scoring prompt** — a template where `AXIS` and `AXIS_DESC` are replaced per axis. The template itself can often be reused across modes with minor adjustments, but the axis names and descriptions are mode-specific. The prompt tells the adjudicator what a score of 1 vs 5 means for that specific axis.
+
+- **Verdict prompt** — tells the adjudicator how to synthesize the final answer. SISTM produces a mechanism-based position statement. Code review produces a findings report with bug counts. Each mode's verdict has a different shape and purpose.
+
+- **Verdict classifier** — a Python function (not a prompt) that deterministically classifies the verdict type and confidence. This is code, not an LLM call. Each mode defines its own types (SISTM: unanimous/majority/contested/unstable; code review: confirmed/disputed/clean/inconclusive) and its own classification logic.
+
+- **Axes and weights** — the quality dimensions and their relative importance. Completely mode-specific. SISTM weights empirical grounding highest; code review weights bug identification and evidence quality highest.
+
+- **Adjudicator and council roster** — optionally, which model adjudicates and which models participate. Defaults to the global config if not specified. Some modes benefit from a different adjudicator (code review uses Gemini because it's more skeptical than Mistral on finding confirmation).
+
+### What the pipeline provides (shared across all modes)
+
+The following are mode-agnostic and do not need to be redefined:
+
+- Council generation (parallel model calls)
+- Rebuttal and refine rounds
+- Flip detection and provenance
+- Conviction bonus calculation
+- Weighted score computation (reads weights from mode config)
+- Artifact export (NDJSON, grouped, summary, raw)
+- Aggregation and reporting (mode-partitioned automatically)
+
+### Steps
+
 1. Define the mode config dict in `council_modes.py`:
    - Axes: list of (name, description) tuples
    - Axis weights: dict of axis_name -> weight
-   - Phase 1, Phase 2, axis, and verdict system prompts
+   - Phase 1, Phase 2, axis, and verdict system prompts (all mode-specific)
    - Verdict classifier function
    - Input type ("jsonl" or "code")
    - Compliance penalty, consensus toggle
@@ -197,9 +229,11 @@ Compare: disputed count, severity distribution, strongest/weakest, verdict stabi
 4. Run a benchmark batch to validate verdict classification
 5. Generate mode-specific aggregate to confirm mode separation in reporting
 
-### Key constraint
+### Key constraints
 
-Do not reuse one mode's rubric for a different task. Code review, legal analysis, and stress testing are judged by different axes. If you need different axes, you need a new mode.
+- Do not reuse one mode's rubric for a different task. Code review, legal analysis, and stress testing are judged by different axes. If you need different axes, you need a new mode.
+- Do not reuse one mode's phase 1 or phase 2 prompts for a task with different evaluation units. Flaw labels are not finding labels. Position consensus is not finding deduplication.
+- The verdict classifier is deterministic code, not an LLM prompt. If your mode has different verdict types, you must write a new classifier function.
 
 ---
 
