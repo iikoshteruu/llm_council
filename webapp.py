@@ -63,6 +63,21 @@ def index():
     return send_from_directory(STATIC_DIR, "index.html")
 
 
+def request_api_key():
+    return (
+        request.headers.get("X-API-Key", "").strip()
+        or request.args.get("api_key", "").strip()
+    )
+
+
+def require_api_key():
+    if not COUNCIL_WEB_API_KEY:
+        return None
+    if request_api_key() != COUNCIL_WEB_API_KEY:
+        return jsonify({"error": "unauthorized"}), 401
+    return None
+
+
 def resolve_artifact_path(relpath: str):
     if not relpath:
         return None
@@ -287,10 +302,9 @@ def normalize_custom_input(council_mode, custom_jsonl=None, code_text=None):
 
 @app.route("/api/run", methods=["POST"])
 def api_run():
-    if COUNCIL_WEB_API_KEY:
-        supplied = request.headers.get("X-API-Key", "").strip()
-        if supplied != COUNCIL_WEB_API_KEY:
-            return jsonify({"returncode": -1, "data": {"error": "unauthorized"}, "stderr": "missing or invalid X-API-Key"}), 401
+    auth_error = require_api_key()
+    if auth_error:
+        return jsonify({"returncode": -1, "data": {"error": "unauthorized"}, "stderr": "missing or invalid X-API-Key"}), 401
 
     data = request.get_json(force=True, silent=True) or {}
     mode = data.get("mode", "nato_v3")
@@ -368,10 +382,9 @@ def api_run():
 
 @app.route("/api/run_async", methods=["POST"])
 def api_run_async():
-    if COUNCIL_WEB_API_KEY:
-        supplied = request.headers.get("X-API-Key", "").strip()
-        if supplied != COUNCIL_WEB_API_KEY:
-            return jsonify({"error": "unauthorized"}), 401
+    auth_error = require_api_key()
+    if auth_error:
+        return auth_error
 
     data = request.get_json(force=True, silent=True) or {}
     mode = data.get("mode", "nato_v3")
@@ -423,10 +436,9 @@ def api_run_async():
 
 @app.route("/api/run_stream/<job_id>", methods=["GET"])
 def api_run_stream(job_id):
-    if COUNCIL_WEB_API_KEY:
-        supplied = request.headers.get("X-API-Key", "").strip()
-        if supplied != COUNCIL_WEB_API_KEY:
-            return jsonify({"error": "unauthorized"}), 401
+    auth_error = require_api_key()
+    if auth_error:
+        return auth_error
 
     def generate():
         idx = 0
@@ -452,10 +464,9 @@ def api_run_stream(job_id):
 
 @app.route("/api/run_result/<job_id>", methods=["GET"])
 def api_run_result(job_id):
-    if COUNCIL_WEB_API_KEY:
-        supplied = request.headers.get("X-API-Key", "").strip()
-        if supplied != COUNCIL_WEB_API_KEY:
-            return jsonify({"error": "unauthorized"}), 401
+    auth_error = require_api_key()
+    if auth_error:
+        return auth_error
     with RUN_JOBS_LOCK:
         job = RUN_JOBS.get(job_id)
         if not job:
@@ -472,10 +483,9 @@ def api_run_result(job_id):
 
 @app.route("/api/artifact", methods=["GET"])
 def api_artifact():
-    if COUNCIL_WEB_API_KEY:
-        supplied = request.headers.get("X-API-Key", "").strip()
-        if supplied != COUNCIL_WEB_API_KEY:
-            return jsonify({"error": "unauthorized"}), 401
+    auth_error = require_api_key()
+    if auth_error:
+        return auth_error
     relpath = request.args.get("path", "").strip()
     artifact_path = resolve_artifact_path(relpath)
     if not artifact_path:
@@ -485,20 +495,30 @@ def api_artifact():
 
 @app.route("/api/dashboard", methods=["GET"])
 def api_dashboard():
-    if COUNCIL_WEB_API_KEY:
-        supplied = request.headers.get("X-API-Key", "").strip()
-        if supplied != COUNCIL_WEB_API_KEY:
-            return jsonify({"error": "unauthorized"}), 401
-    aggregate_path = os.path.join(BASE_DIR, "council_aggregate.json")
-    report_path = os.path.join(BASE_DIR, "council_report.html")
+    auth_error = require_api_key()
+    if auth_error:
+        return auth_error
+
+    mode = (request.args.get("mode") or "").strip()
+    if mode:
+        aggregate_path = os.path.join(BASE_DIR, f"council_aggregate_{mode}.json")
+        report_path = os.path.join(BASE_DIR, f"council_report_{mode}.html")
+        if not os.path.isfile(aggregate_path):
+            aggregate_path = os.path.join(BASE_DIR, "council_aggregate.json")
+        if not os.path.isfile(report_path):
+            report_path = os.path.join(BASE_DIR, "council_report.html")
+    else:
+        aggregate_path = os.path.join(BASE_DIR, "council_aggregate.json")
+        report_path = os.path.join(BASE_DIR, "council_report.html")
     if not os.path.isfile(aggregate_path):
         return jsonify({"error": "aggregate_missing"}), 404
     with open(aggregate_path, "r", encoding="utf-8") as f:
         aggregate = json.load(f)
     return jsonify({
+        "mode": mode or aggregate.get("mode"),
         "aggregate": aggregate,
         "report_exists": os.path.isfile(report_path),
-        "report_path": "council_report.html" if os.path.isfile(report_path) else None,
+        "report_path": os.path.basename(report_path) if os.path.isfile(report_path) else None,
         "generated_at": os.path.getmtime(aggregate_path),
     })
 
