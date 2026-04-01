@@ -292,7 +292,7 @@ The following are mode-agnostic and do not need to be redefined:
 ## Benchmark Hygiene
 
 - `results/legacy/` is the historical archive. Keep older mixed-era runs there.
-- `results/current/` is the stable benchmark corpus. Put new post-fix exports there.
+- `results/current/` is the stable benchmark corpus for SISTM. Put new SISTM exports there.
 - `results/current/code_review/` is the code review benchmark corpus. Each test case gets its own subdirectory.
 - `results/run_id.txt` stays at the top level. Do not move it; the runner uses it directly.
 - Aggregate/report generation should target mode-specific paths. The aggregator partitions automatically when files contain mixed modes.
@@ -301,16 +301,66 @@ The following are mode-agnostic and do not need to be redefined:
 Example:
 
 ```bash
+# SISTM aggregate
 python3 council_aggregator.py results/current --json
-python3 council_report.py council_aggregate.json
+
+# Code review aggregate (specify all case directories)
+python3 council_aggregator.py \
+  results/current/code_review_gemini_adj_rerun/01_auth_middleware/ \
+  results/current/code_review_gemini_adj_rerun/02_cache_layer/ \
+  results/current/code_review_gemini_adj_rerun/03_task_queue/ \
+  results/current/code_review_gemini_adj_rerun/04_data_pipeline/ \
+  results/current/code_review_gemini_adj_rerun/05_async_state_js/ \
+  results/current/code_review_gemini_adj_rerun/06_concurrency_go/ \
+  results/current/code_review_gemini_adj_rerun/07_input_validation/ \
+  results/current/code_review_gemini_adj_rerun/08_error_handling/ \
+  --json
 ```
+
+### Code review benchmark corpus
+
+The canonical code review benchmark is 8 files across 4 languages (Python, JavaScript, Go, TypeScript). Bug classes covered:
+
+- Security: hardcoded secrets, SQL injection, auth bypass
+- Concurrency: race conditions, goroutine leaks, channel misuse, TOCTOU
+- State management: stale closures, event ordering, unbounded growth
+- Error handling: partial failure, inventory leaks, missing rollback
+- Data integrity: silent overwrites, string-sorted dates, float equality
+- Validation: trust boundaries, mixed parameterized/unparameterized queries
+
+When expanding the corpus:
+- Keep language diversity — do not drift back to Python-only
+- Include Go and TypeScript in every expansion to preserve cross-language coverage
+- Each file should have bugs at multiple severity levels and at least one that models will dispute
+- Store prompt files in `prompts/code_review/` and artifacts under `results/current/code_review*/`
 
 ---
 
 ## Known Model Behaviors (Summary)
+
+### SISTM Mode
 
 **GPT-4.1:** Highest flip rate (~30%). Flips are recency-driven (confirmed by reverse-rebuttal A/B). Strongest on format compliance, weakest on mechanism depth. empirical_grounding averages 3.56 (lowest of three models).
 
 **Claude Opus 4-6:** Lowest flip rate when flipping is recency-driven. Flips on evidence-driven topics (net neutrality) are legitimate updates. Order-invariant in reverse-rebuttal testing. empirical_grounding averages 4.60 (highest). Strongest overall (+52 net strongest/weakest).
 
 **Gemini Flash:** Middle position on most metrics. Susceptible to recency-driven flips but less consistently than GPT. Initial answers tend toward hedging; deliberation improves quality. Context isolation required to prevent cross-question bleed.
+
+### Code Review Mode (Gemini adjudicator)
+
+**Claude Opus:** Strongest reviewer (avg 38.1, strongest 6/8). Best evidence quality (3.75), fix quality (4.38). Most persuasive in deliberation — rebuttals caused 5 flips in other models. Low flip rate (25%), all cited.
+
+**GPT-4.1:** Most consistent reviewer (StdDev 1.9, lowest). Moderate performance (avg 34.0). No uncited flips. Behavioral reversal from SISTM — stable and evidence-driven in code review, recency-driven in stress testing.
+
+**Mistral (council member):** Not currently competitive (avg 27.3, weakest 6/8). 87.5% flip rate, 50% uncited. Negative conviction (-0.25). Weakest fix quality (2.50). This finding is specific to the code review benchmark corpus.
+
+**Gemini Flash (adjudicator):** Conservative finding confirmation, accurate severity calibration. Surfaces genuine disagreements rather than rubber-stamping. Preferred over Mistral for code review adjudication.
+
+### Cross-Mode Behavioral Summary
+
+| Model | SISTM Behavior | Code Review Behavior |
+|-------|----------------|---------------------|
+| Claude Opus | Strongest, holds positions, evidence-driven | Strongest reviewer, most persuasive |
+| GPT-4.1 | Recency-driven flips, format-compliant | Stable, evidence-driven — behavioral reversal |
+| Gemini Flash | Middle, hedges initially | Better as adjudicator than council member |
+| Mistral | Reliable SISTM adjudicator | Weak reviewer, recency-driven flips |

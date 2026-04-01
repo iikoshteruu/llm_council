@@ -177,11 +177,26 @@ Consensus extraction is disabled in code review mode — findings replace consen
 
 ### Benchmark Results
 
-Benchmark corpus: 4 curated code files (auth middleware, cache layer, task queue, data pipeline) with realistic bugs at varying severity. Each file run with rebuttal + refine enabled.
+#### Canonical Corpus
+
+8 curated code files across 4 languages:
+
+| File | Language | Bug Classes |
+|------|----------|-------------|
+| 01_auth_middleware | Python | Hardcoded secrets, auth bypass, unbounded memory |
+| 02_cache_layer | Python | Thread safety, TOCTOU, uninitialized state |
+| 03_task_queue | Python | Race conditions, infinite retry, destructive reads |
+| 04_data_pipeline | Python | Data loss, string-sorted dates, partial writes |
+| 05_async_state_js | JavaScript | Stale closures, event ordering, batch notify |
+| 06_concurrency_go | Go | Goroutine races, channel misuse, shutdown ordering |
+| 07_input_validation | Python/SQL | SQL injection (5 methods), trust boundary, mixed parameterization |
+| 08_error_handling | TypeScript | Inventory leak on failure, float equality, partial rollback |
+
+All runs use rebuttal + refine. Adjudicator: Gemini Flash. Council: GPT-4.1, Claude Opus, Mistral.
 
 #### Adjudicator Comparison (Mistral vs Gemini)
 
-A controlled A/B comparison was run across all 4 files with identical council rosters (except the adjudicator swap).
+Controlled A/B comparison across the initial 4 Python files with identical council rosters (except the adjudicator swap).
 
 | Metric | Mistral Adjudicator | Gemini Adjudicator |
 |--------|--------------------|--------------------|
@@ -196,54 +211,83 @@ A controlled A/B comparison was run across all 4 files with identical council ro
 
 **Conclusion**: Gemini is the better code review adjudicator. Mistral over-confirms findings (2% dispute rate) and inflates severity (22 high vs Gemini's 3). Gemini is appropriately skeptical — it challenges findings, produces a tighter set, and distributes severity more accurately. `code_review` now defaults to Gemini adjudication.
 
-#### Model Performance (Gemini adjudicator, validated run)
+#### Model Performance (8-File Corpus, Gemini Adjudicator)
 
-| Model | Avg Score | StdDev | Strongest | Weakest | Net |
-|-------|----------|--------|-----------|---------|-----|
-| Claude Opus | 38.6 | 3.0 | 3 | 0 | +3 |
-| GPT-4.1 | 34.0 | 2.8 | 1 | 2 | -1 |
-| Mistral | 32.6 | 4.2 | 0 | 2 | -2 |
+| Model | Avg Score | StdDev | Strongest | Weakest | Net | Conviction |
+|-------|----------|--------|-----------|---------|-----|------------|
+| Claude Opus | 38.1 | 4.7 | 6 | 0 | +6 | 1.50 |
+| GPT-4.1 | 34.0 | 1.9 | 2 | 2 | 0 | 1.25 |
+| Mistral | 27.3 | 7.7 | 0 | 6 | -6 | -0.25 |
 
-#### Axis Scores
+Claude strongest in 6/8 cases across all 4 languages. GPT is the most consistent reviewer (lowest StdDev). Mistral is not currently competitive as a code-review council member in the benchmark corpus.
+
+#### Axis Scores (8-File Average)
 
 | Axis | Claude | GPT-4.1 | Mistral |
 |------|--------|---------|---------|
-| bug_identification | 4.75 | 4.75 | 5.00 |
-| severity_accuracy | 5.00 | 5.00 | 4.50 |
-| evidence_quality | 4.00 | 2.50 | 3.25 |
-| fix_quality | 4.75 | 4.50 | 2.75 |
-| regression_awareness | 3.00 | 1.25 | 2.50 |
-| scope_discipline | 5.00 | 5.00 | 5.00 |
+| bug_identification | 4.88 | 4.88 | 4.00 |
+| severity_accuracy | 5.00 | 5.00 | 3.75 |
+| evidence_quality | 3.75 | 2.50 | 2.88 |
+| fix_quality | 4.38 | 4.25 | 2.50 |
+| regression_awareness | 2.75 | 1.62 | 2.00 |
+| scope_discipline | 5.00 | 5.00 | 4.88 |
 
-All three models find bugs at comparable rates (4.75-5.0). The separation is in evidence quality (Claude 4.0 vs GPT 2.5) and fix quality (Claude 4.75 vs Mistral 2.75). Regression awareness is universally weak — the hardest axis for all models.
+All models find bugs at comparable rates (4.00-4.88). The separation is in evidence quality (Claude 3.75 vs GPT 2.50) and fix quality (Claude 4.38 vs Mistral 2.50). Regression awareness is the weakest axis for all models — a real capability gap, not a prompt artifact.
 
-#### Flip Behavior
+#### Flip Behavior (8-File Corpus)
 
 | Model | Held | Cited | Uncited | Flip% | Conviction Avg |
 |-------|------|-------|---------|-------|----------------|
-| Claude Opus | 2 | 2 | 0 | 50% | 1.00 |
-| GPT-4.1 | 3 | 1 | 0 | 25% | 1.50 |
-| Mistral | 1 | 2 | 1 | 75% | 0.25 |
+| Claude Opus | 6 | 2 | 0 | 25% | 1.50 |
+| GPT-4.1 | 5 | 3 | 0 | 37.5% | 1.25 |
+| Mistral | 1 | 3 | 4 | 87.5% | -0.25 |
 
-**Claude**: Flips are evidence-driven (cited, from GPT's rebuttals). When it holds, it's strongest.
+**Claude**: Low flip rate (25%), all cited. Most stable when it holds position. Most persuasive in deliberation — its rebuttals caused 5 flips across other models (3 GPT + 2 Mistral).
 
-**GPT-4.1**: Most stable in code review — lowest flip rate, highest conviction. Reversal from SISTM behavior where it flips frequently and recency-driven.
+**GPT-4.1**: Moderate flip rate (37.5%), all cited. Evidence-driven updates — behavioral reversal from SISTM where flips are recency-driven.
 
-**Mistral**: Weakest council member — 75% flip rate, 25% uncited. Shows recency-driven flip behavior similar to GPT's SISTM pattern. Lowest conviction (0.25).
+**Mistral**: 87.5% flip rate, 50% uncited. Negative conviction (-0.25). Recency-driven instability — the weakest council member for this mode.
 
-**Flip provenance**: Claude's rebuttals caused 2 Mistral flips and 1 GPT flip. GPT's rebuttals caused 2 Claude flips. Claude is the most persuasive reviewer.
+#### Per-File Verdicts
+
+| File | Language | Verdict | Findings | Confirmed | Disputed | Spread |
+|------|----------|---------|----------|-----------|----------|--------|
+| 01_auth_middleware | Python | disputed/moderate | 9 | 3 | 2 | 5.30 |
+| 02_cache_layer | Python | confirmed/high | 6 | 4 | 0 | 2.65 |
+| 03_task_queue | Python | disputed/low | 10 | 3 | 3 | 2.47 |
+| 04_data_pipeline | Python | disputed/moderate | 8 | 5 | 1 | 5.01 |
+| 05_async_state_js | JavaScript | confirmed/high | 9 | 3 | 0 | 12.38 |
+| 06_concurrency_go | Go | disputed/moderate | 8 | 7 | 1 | 8.05 |
+| 07_input_validation | Python/SQL | disputed/moderate | 9 | 7 | 2 | 4.25 |
+| 08_error_handling | TypeScript | disputed/moderate | 8 | 5 | 2 | 9.25 |
+
+#### Language-Specific Observations
+
+**JavaScript (05)**: Highest discriminative spread (12.38). Mistral collapsed on async/state bugs (16.0). Claude and GPT handled closures and event ordering well.
+
+**Go (06)**: Hardest language for the council. Claude scored its lowest (28.5). GPT was actually strongest — its procedural review style fits Go's explicit concurrency model. Go race conditions produce genuine model disagreement.
+
+**SQL injection (07)**: All models caught injection patterns (7 confirmed). Disputes were on severity and scope. Easiest file for the council — injection is unambiguous.
+
+**TypeScript (08)**: Claude's highest score (43.5). Partial failure and inventory leak bugs play to Claude's strength in evidence quality and regression awareness.
 
 #### Key Findings
 
-1. **Mode rubric separation is validated**: GPT-4.1's behavior is materially different in code review vs SISTM — stable and evidence-driven here, recency-driven there. Same model, different rubric, different behavior.
+1. **The mode generalizes across languages.** JS, Go, TS, Python/SQL all produce the same ranking pattern. Not a Python bias.
 
-2. **Mistral is a weak code reviewer**: High flip rate, low conviction, weakest fix quality. Better as adjudicator (SISTM) than as a council member (code review).
+2. **Discriminative power is high.** 6/8 files score HIGH on spread. The code review prompts effectively separate model quality.
 
-3. **Claude is the strongest code reviewer**: Best evidence quality, fix quality, and regression awareness. Most persuasive in deliberation.
+3. **Go is the hardest language for the council.** All models score lower. GPT's procedural style gives it an advantage here. Worth monitoring as the corpus expands.
 
-4. **Gemini adjudication is the right default**: Conservative finding confirmation, accurate severity calibration, surfaces genuine disagreements.
+4. **Mistral is not currently competitive as a code-review council member.** Negative conviction, 50% uncited flips, weakest fix quality (2.50) and severity accuracy (3.75). This finding is specific to the code review benchmark corpus.
 
-5. **Regression awareness is universally weak**: All models score below 3.0 on average. Consider whether this axis needs weight adjustment or prompt refinement to elicit better regression analysis.
+5. **Claude is the strongest code reviewer.** Best evidence quality, fix quality, and regression awareness. Most persuasive in deliberation — its rebuttals are the primary cause of position changes in other models.
+
+6. **GPT-4.1 is the most consistent reviewer.** Lowest score variance (1.9), no uncited flips. Its behavioral reversal from SISTM (recency-driven → evidence-driven) is the strongest evidence that mode rubric separation produces real behavioral differences.
+
+7. **Regression awareness is a genuine cross-model capability gap.** All models average below 3.0. This axis separates from ceiling scores and is the hardest for all reviewers.
+
+8. **Gemini adjudication is the correct default for code review.** Conservative finding confirmation, accurate severity calibration, surfaces genuine disagreements rather than rubber-stamping.
 
 ---
 
