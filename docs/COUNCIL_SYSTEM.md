@@ -175,15 +175,75 @@ Verdict output includes `findings_count`, `confirmed_bugs`, and `disputed` count
 
 Consensus extraction is disabled in code review mode — findings replace consensus.
 
-### Benchmark Results (Initial)
+### Benchmark Results
 
-First benchmark across 4 curated code files (auth middleware, cache layer, task queue, data pipeline):
+Benchmark corpus: 4 curated code files (auth middleware, cache layer, task queue, data pipeline) with realistic bugs at varying severity. Each file run with rebuttal + refine enabled.
 
-- Claude Opus: strongest in 3/4 cases (avg 40.0). Best on bug_identification (5.0) and severity_accuracy (5.0).
-- Gemini Flash: most stable reviewer — zero flips, +2 conviction every run. Held every position through deliberation.
-- GPT-4.1: weakest in 3/4 (avg 29.1). Flipped 3 times, all cited — evidence-driven updates, unlike its uncited SISTM flips.
+#### Adjudicator Comparison (Mistral vs Gemini)
 
-Key finding: GPT-4.1's flip behavior is materially different in code review vs SISTM — cited and evidence-driven rather than recency-driven. This validates having separate mode rubrics.
+A controlled A/B comparison was run across all 4 files with identical council rosters (except the adjudicator swap).
+
+| Metric | Mistral Adjudicator | Gemini Adjudicator |
+|--------|--------------------|--------------------|
+| Total findings | 60 | 33 |
+| Confirmed | 39 (65%) | 15 (45%) |
+| Disputed | 1 (2%) | 6 (18%) |
+| Unique | 20 (33%) | 12 (36%) |
+| Verdict: confirmed/high | 3/4 cases | 1/4 cases |
+| Verdict: disputed | 1/4 cases | 3/4 cases |
+| Severity: high | 22 | 3 |
+| Severity: medium | 22 | 15 |
+
+**Conclusion**: Gemini is the better code review adjudicator. Mistral over-confirms findings (2% dispute rate) and inflates severity (22 high vs Gemini's 3). Gemini is appropriately skeptical — it challenges findings, produces a tighter set, and distributes severity more accurately. `code_review` now defaults to Gemini adjudication.
+
+#### Model Performance (Gemini adjudicator, validated run)
+
+| Model | Avg Score | StdDev | Strongest | Weakest | Net |
+|-------|----------|--------|-----------|---------|-----|
+| Claude Opus | 38.6 | 3.0 | 3 | 0 | +3 |
+| GPT-4.1 | 34.0 | 2.8 | 1 | 2 | -1 |
+| Mistral | 32.6 | 4.2 | 0 | 2 | -2 |
+
+#### Axis Scores
+
+| Axis | Claude | GPT-4.1 | Mistral |
+|------|--------|---------|---------|
+| bug_identification | 4.75 | 4.75 | 5.00 |
+| severity_accuracy | 5.00 | 5.00 | 4.50 |
+| evidence_quality | 4.00 | 2.50 | 3.25 |
+| fix_quality | 4.75 | 4.50 | 2.75 |
+| regression_awareness | 3.00 | 1.25 | 2.50 |
+| scope_discipline | 5.00 | 5.00 | 5.00 |
+
+All three models find bugs at comparable rates (4.75-5.0). The separation is in evidence quality (Claude 4.0 vs GPT 2.5) and fix quality (Claude 4.75 vs Mistral 2.75). Regression awareness is universally weak — the hardest axis for all models.
+
+#### Flip Behavior
+
+| Model | Held | Cited | Uncited | Flip% | Conviction Avg |
+|-------|------|-------|---------|-------|----------------|
+| Claude Opus | 2 | 2 | 0 | 50% | 1.00 |
+| GPT-4.1 | 3 | 1 | 0 | 25% | 1.50 |
+| Mistral | 1 | 2 | 1 | 75% | 0.25 |
+
+**Claude**: Flips are evidence-driven (cited, from GPT's rebuttals). When it holds, it's strongest.
+
+**GPT-4.1**: Most stable in code review — lowest flip rate, highest conviction. Reversal from SISTM behavior where it flips frequently and recency-driven.
+
+**Mistral**: Weakest council member — 75% flip rate, 25% uncited. Shows recency-driven flip behavior similar to GPT's SISTM pattern. Lowest conviction (0.25).
+
+**Flip provenance**: Claude's rebuttals caused 2 Mistral flips and 1 GPT flip. GPT's rebuttals caused 2 Claude flips. Claude is the most persuasive reviewer.
+
+#### Key Findings
+
+1. **Mode rubric separation is validated**: GPT-4.1's behavior is materially different in code review vs SISTM — stable and evidence-driven here, recency-driven there. Same model, different rubric, different behavior.
+
+2. **Mistral is a weak code reviewer**: High flip rate, low conviction, weakest fix quality. Better as adjudicator (SISTM) than as a council member (code review).
+
+3. **Claude is the strongest code reviewer**: Best evidence quality, fix quality, and regression awareness. Most persuasive in deliberation.
+
+4. **Gemini adjudication is the right default**: Conservative finding confirmation, accurate severity calibration, surfaces genuine disagreements.
+
+5. **Regression awareness is universally weak**: All models score below 3.0 on average. Consider whether this axis needs weight adjustment or prompt refinement to elicit better regression analysis.
 
 ---
 
@@ -379,6 +439,37 @@ Recommendation: Make reverse-rebuttal a standard diagnostic for any new model ad
 
 Recommendation: Make reverse-rebuttal a standard diagnostic for any new model added to the council to detect recency/compliance bias vs. evidence-driven updates.
 
+### Code Review Mode Behaviors (Runs 60–63, Gemini adjudicator)
+
+Council: GPT-4.1, Claude Opus, Mistral. Adjudicator: Gemini Flash.
+
+**Claude Opus**
+- Strongest reviewer: 3/4 cases strongest, avg 38.6.
+- Best evidence quality (4.0) and fix quality (4.75) — cites specific lines and provides minimal, targeted fixes.
+- Flips are cited and evidence-driven (from GPT's rebuttals). When it holds, it dominates.
+- Most persuasive in deliberation — its rebuttals caused 2 Mistral flips and 1 GPT flip.
+
+**GPT-4.1**
+- Most stable code reviewer: lowest flip rate (25%), highest conviction (1.50).
+- Strong on bug identification (4.75) and scope discipline (5.0).
+- Weak on evidence quality (2.50) — finds bugs but doesn't cite lines or execution paths as well.
+- Behavioral reversal from SISTM: stable and evidence-driven in code review, recency-driven in SISTM. This is the strongest evidence that mode rubric separation is doing real work.
+
+**Mistral (as council member)**
+- Weakest reviewer: 0/4 strongest, 2/4 weakest, avg 32.6.
+- Highest flip rate (75%), 25% uncited — shows recency-driven flip behavior.
+- Strong bug identification (5.0) but weakest fix quality (2.75) — finds bugs, proposes bad fixes.
+- Lowest conviction average (0.25). Better suited as adjudicator (SISTM) than council member (code review).
+
+**Cross-mode behavioral summary:**
+
+| Model | SISTM Role | SISTM Behavior | Code Review Role | Code Review Behavior |
+|-------|-----------|----------------|-----------------|---------------------|
+| Claude Opus | Council | Strongest, holds positions, evidence-driven | Council | Strongest, most persuasive reviewer |
+| GPT-4.1 | Council | Recency-driven flips, format-compliant | Council | Stable, evidence-driven — behavioral reversal |
+| Gemini Flash | Council | Middle, hedges initially, improves with deliberation | Adjudicator | Conservative, skeptical, good severity calibration |
+| Mistral | Adjudicator | Reliable for SISTM flaw labeling | Council | Weak reviewer, recency-driven flips, bad fixes |
+
 ---
 
 ## Prompt Design (SISTM)
@@ -394,15 +485,17 @@ Prompts follow the Socratic Inversion Stress Test Method:
 
 ## Web UI
 
-- Mode dropdown: All domain prompt sets plus NATO v3 and Constitutional. Custom mode accepts pasted JSONL.
+- Mode selector: SISTM Stress Test or Code Review.
+- Domain dropdown: 24 SISTM domain presets plus custom JSONL. Code review accepts pasted code.
 - Checkboxes: Enable/disable rebuttal and refine rounds.
-- Downloads: NDJSON (flat), grouped.json (structured), summary.json (lightweight).
+- Verdict display: Hero cards with type/confidence badges, findings counts for code review.
+- Downloads: NDJSON (flat), grouped.json (structured), summary.json (lightweight). Server-side artifacts when available.
 
 ---
 
 ## Development History
 
-The system was developed iteratively across 44 runs. Key milestones:
+The system was developed iteratively across 63+ runs. Key milestones:
 
 | Runs | Milestone |
 |------|-----------|
@@ -412,7 +505,13 @@ The system was developed iteratively across 44 runs. Key milestones:
 | 30 | Generalization validated across law, economics, nuclear engineering |
 | 33–34 | Grouped export schema finalized, code_hash added |
 | 34–43 | Consensus parser iterations on softeng domain (ultimately replaced) |
-| 44 | Consensus delegated to Mistral adjudicator. Pipeline complete |
+| 44 | Consensus delegated to Mistral adjudicator. SISTM pipeline complete |
+| 44–46 | Flip provenance, discriminative power, consensus stability metrics added |
+| 46 | Verdict layer added — deterministic classification with confidence, refuses to force certainty |
+| 47–50 | Mode abstraction layer. Code review mode with findings-first verdict |
+| 51–54 | Code review benchmark (Mistral adjudicator baseline) |
+| 55–58 | Adjudicator comparison: Mistral vs Gemini on code review |
+| 60–63 | Code review validated with Gemini adjudicator (Claude restored). Gemini promoted to default code review adjudicator |
 
 ---
 
@@ -455,4 +554,7 @@ The aggregator (`council_aggregator.py`) computes:
 
 - Multi-round deliberation with convergence check (iterate rebuttal/refine until no flips)
 - Prompt-file metadata (Option B domain tagging inside JSONL for portability)
-- Wider domain sweep with statistical validation across all 24 domain sets
+- Wider domain sweep with statistical validation across all 24 SISTM domain sets
+- Regression awareness improvement for code review mode (universally weakest axis)
+- Additional modes: research synthesis, general council, legal analysis
+- Model behavioral profiles document (standalone empirical findings)
