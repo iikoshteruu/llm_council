@@ -321,6 +321,14 @@ Use:
 - Effect: research-synthesis now behaves as a first-class mode alongside `SISTM` and `code_review`
 - Comparability: establishes the first research-synthesis benchmark corpus; new mode, so no cross-mode comparison should be inferred
 
+## 2026-04-02 — Legal Analysis Mode Wired Through Web And Benchmark Paths
+
+- Area: mode plumbing
+- Change: added legal-analysis preset routing in `webapp.py`, exposed legal-analysis mode and presets in the web UI, and ran both baseline and Gemini-adjudicator six-prompt benchmark batches
+- Motivation: the legal-analysis contract was defined in `council_modes.py` but needed full web/runtime support and the adjudicator A/B corpus before evaluation
+- Effect: legal_analysis is now runnable end-to-end and has both baseline and comparison artifacts ready for adjudicator analysis
+- Comparability: establishes the first legal-analysis benchmark corpus; adjudicator comparison should be interpreted mode-internally only
+
 ## 2026-04-01 — Model Behavioral Profiles Published
 
 - Area: documentation/methodology

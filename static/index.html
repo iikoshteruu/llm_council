@@ -244,6 +244,7 @@
             <option value="sistm_stress" selected>SISTM Stress Test</option>
             <option value="code_review">Code Review</option>
             <option value="research_synthesis">Research Synthesis</option>
+            <option value="legal_analysis">Legal Analysis</option>
           </select>
         </div>
         <div>
@@ -370,6 +371,13 @@ const MODE_META = {
     placeholder: 'Paste a research question here...',
     customModeLabel: 'Custom Question',
   },
+  legal_analysis: {
+    label: 'Legal Analysis',
+    modeLabel: 'Prompt',
+    inputLabel: 'Legal question',
+    placeholder: 'Paste a legal analysis question here...',
+    customModeLabel: 'Custom Question',
+  },
 };
 const PRESETS_BY_MODE = {
   sistm_stress: [
@@ -417,6 +425,15 @@ const PRESETS_BY_MODE = {
     ['04_nuclear_safety', '04 Nuclear Safety'],
     ['05_screen_time', '05 Screen Time'],
     ['06_masks_covid', '06 Masks and COVID'],
+    ['custom', 'Custom Question'],
+  ],
+  legal_analysis: [
+    ['01_section_230_algorithms', '01 Section 230 Algorithms'],
+    ['02_gdpr_legal_hold', '02 GDPR Legal Hold'],
+    ['03_faa_preemption', '03 FAA Preemption'],
+    ['04_dormant_commerce', '04 Dormant Commerce'],
+    ['05_fourth_amendment_geofence', '05 Fourth Amendment Geofence'],
+    ['06_ai_copyright', '06 AI Copyright'],
     ['custom', 'Custom Question'],
   ],
 };
@@ -555,13 +572,13 @@ $('runBtn').onclick = async () => {
     if (!input) {
       const msg =
         councilMode === 'code_review' ? 'Code review mode requires pasted code.' :
-        councilMode === 'research_synthesis' ? 'Research synthesis mode requires a research question.' :
+        (councilMode === 'research_synthesis' || councilMode === 'legal_analysis') ? 'This mode requires a question.' :
         'Custom mode requires JSONL input.';
       $('results').innerHTML = `<div class="error-box">${msg}</div>`;
       btn.disabled = false;
       return;
     }
-    if (councilMode === 'code_review' || councilMode === 'research_synthesis') body.code = input;
+    if (councilMode === 'code_review' || councilMode === 'research_synthesis' || councilMode === 'legal_analysis') body.code = input;
     else body.jsonl = input;
   }
 
