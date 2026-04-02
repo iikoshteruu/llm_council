@@ -361,6 +361,14 @@ Use:
 - Effect: **three modes, three different model rankings.** GPT-4.1 is strongest in research synthesis (5/6, avg 40.2) while Claude is weakest (0/6, avg 36.2). Complete reversal from SISTM and code review. This is the definitive validation that mode-specific rubrics produce materially different model hierarchies.
 - Comparability: research_synthesis is a separate mode; not comparable to SISTM or code_review metrics
 
+## 2026-04-02 — Research Synthesis Adjudicator Comparison
+
+- Area: mode configuration / methodology
+- Change: controlled A/B comparison of Mistral vs Gemini adjudicator on same 6 research synthesis prompts (runs 74-79 vs 68-73)
+- Motivation: determine whether Gemini (the better code review adjudicator) is also better for research synthesis
+- Effect: **opposite conclusion from code review.** Mistral is the better adjudicator for research synthesis. Gemini over-scores evidence quality (all-5s ceiling compression on GPT, destroying discriminative power). Mistral distributes scores realistically (3.50-5.00 range). Ranking is stable with both adjudicators (GPT strongest in both), but Mistral provides better calibration. `research_synthesis` locked to Mistral adjudication as default.
+- Comparability: adjudicator choice is now a confirmed mode-dependent variable. Cross-mode adjudicator summary: SISTM→Mistral, code_review→Gemini, research_synthesis→Mistral. There is no universally best adjudicator.
+
 ---
 
 ## Current Benchmark Conclusions
@@ -397,6 +405,14 @@ There is no globally best model in this system. There are mode-specific best mod
 | Claude Opus | Strongest | Strongest | Weakest |
 | GPT-4.1 | Weak | Middle | Strongest |
 | Gemini Flash | Middle | Adjudicator | Middle |
+
+There is no universally best adjudicator. The correct adjudicator depends on the mode:
+
+| Mode | Default Adjudicator | Reason |
+|------|---------------------|--------|
+| SISTM | Mistral | Reliable flaw labeling, no sycophancy |
+| Code Review | Gemini | Mistral over-confirms, inflates severity |
+| Research Synthesis | Mistral | Gemini over-scores, ceiling compression |
 
 ---
 

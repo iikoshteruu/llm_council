@@ -652,6 +652,40 @@ GPT flipped on every question — all cited. In research synthesis, it treats ev
 
 GPT's strength in research synthesis is citation specificity and evidence sourcing. Claude's strength in SISTM is mechanism depth and rhetorical resistance. The same model that folds under adversarial pressure (GPT in SISTM) excels at evidence synthesis — and the same model that dominates adversarial debate (Claude in SISTM) is less rigorous about causation vs correlation.
 
+#### Research Synthesis Adjudicator Comparison
+
+Controlled A/B across all 6 prompts: Mistral adjudicator (runs 68-73) vs Gemini adjudicator (runs 74-79).
+
+| Metric | Mistral Adjudicator | Gemini Adjudicator |
+|--------|--------------------|--------------------|
+| GPT avg score | 40.2 | 45.7 |
+| GPT axes at 5.0 | 1/6 | 6/6 (all) |
+| Score range (GPT) | 4.00-5.00 | 5.00 (ceiling) |
+| GPT flip rate | 100% | 66.7% |
+| Verdict shifts | — | 1 supported→contested, 3 moderate→high |
+| Ranking: GPT strongest | 5/6 | 4/6 |
+
+**Conclusion: Mistral is the better adjudicator for research synthesis.** Opposite conclusion from code review, for the opposite reason:
+
+- In code review, Mistral over-confirmed findings (2% dispute rate). Gemini was more skeptical. → Gemini better.
+- In research synthesis, Gemini over-scores evidence quality (all-5s ceiling compression). Mistral distributes scores more realistically. → Mistral better.
+
+Gemini pushing research synthesis scores toward perfect 5.0 across all axes destroys discriminative power — it can no longer distinguish good evidence handling from excellent. Mistral preserves a 3.50-5.00 range that surfaces real quality differences.
+
+The ranking is stable with either adjudicator (GPT strongest in both), but Mistral provides better calibration for analysis.
+
+**`research_synthesis` defaults to Mistral adjudication. `research_synthesis_gemini_adj` is preserved as comparison variant.**
+
+#### Cross-Mode Adjudicator Summary
+
+| Mode | Better Adjudicator | Reason |
+|------|--------------------|--------|
+| SISTM | Mistral | Reliable flaw labeling, no sycophancy across 50+ runs |
+| Code Review | Gemini | Mistral over-confirms findings, inflates severity |
+| Research Synthesis | Mistral | Gemini over-scores evidence quality, ceiling compression |
+
+**There is no universally best adjudicator.** The correct adjudicator depends on the mode, just as the strongest council member depends on the mode. The system does not collapse to a single "best evaluator" assumption.
+
 ---
 
 ## Domain Propagation
