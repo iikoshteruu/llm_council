@@ -25,6 +25,32 @@ This document defines what Claude owns and does not own in this project. Read `C
 - **Aggregator file collection logic** — glob patterns, directory recursion, file discovery in `council_aggregator.py main()`
 - **Dashboard data endpoint** — `/api/dashboard`, aggregate file resolution, mode routing
 
+## Shared file: council_basic.py
+
+`council_basic.py` is the one file with split ownership. Both Claude and Codex have functions in it.
+
+**Claude owns (scoring/adjudication semantics):**
+- `compute_weighted_score` — axis weight application, compliance penalty, conviction bonus
+- `council_verdict` — verdict synthesis dispatch
+- `classify_verdict` — deterministic verdict classification (legacy fallback)
+- `majority_consensus` — consensus extraction
+- `adjudicate` — adjudication call dispatcher
+- `AdjudicatorLogger` — structured adjudication logging
+- `score_axis` — per-axis scoring call
+- `contradiction_check` — contradiction validation
+- `sanitize_phase1` — phase 1 annotation cleanup (premise echo heuristic, contradiction validation, length violation clearing)
+
+**Codex owns (runtime/pipeline plumbing):**
+- `main()` — CLI arg parsing, run lifecycle, model iteration, rebuttal/refine orchestration
+- `call_openai`, `call_anthropic`, `call_google`, `call_xai`, `call_local` — API callers
+- `run_model` — model execution loop
+- `iter_council_models`, `_model_registry`, `get_adjudicator_caller` — roster/dispatch
+- `build_grouped_export`, `build_ndjson_lines`, `write_run_artifacts` — artifact construction
+- `is_compliant`, `count_sentences` — compliance checking
+- `progress` — SSE progress reporting
+
+**Rule:** If both sides need to edit `council_basic.py` in the same session, stop and define which functions are being touched before editing. Do not modify Codex's functions without explicit handoff.
+
 ## Rules
 
 1. **Do not modify webapp.py** unless explicitly asked by the user and confirmed that Codex is not working on it.
