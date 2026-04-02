@@ -392,12 +392,22 @@ RESEARCH_SYNTHESIS_MODE = {
 # Mode registry
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Experiment variant: Gemini adjudicates research synthesis, Mistral joins council
+RESEARCH_SYNTHESIS_GEMINI_ADJ = {
+    **RESEARCH_SYNTHESIS_MODE,
+    "name": "research_synthesis_gemini_adj",
+    "label": "Research Synthesis (Gemini Adjudicator)",
+    "adjudicator_model": "google",
+    "council_models": ["openai", "anthropic", "mistral"],
+}
+
 MODES = {
     "sistm_stress": SISTM_MODE,
     "code_review": CODE_REVIEW_GEMINI_ADJ,  # Gemini adjudicator is the default for code review
     "code_review_mistral_adj": CODE_REVIEW_MODE,  # Mistral adjudicator kept as comparison baseline
     "code_review_gemini_adj": CODE_REVIEW_GEMINI_ADJ,  # explicit alias
-    "research_synthesis": RESEARCH_SYNTHESIS_MODE,
+    "research_synthesis": RESEARCH_SYNTHESIS_MODE,  # Mistral adjudicator (current default)
+    "research_synthesis_gemini_adj": RESEARCH_SYNTHESIS_GEMINI_ADJ,  # experiment variant
 }
 
 DEFAULT_MODE = "sistm_stress"
