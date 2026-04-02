@@ -68,3 +68,69 @@ This document defines what Claude owns and does not own in this project. Read `C
 - If Codex has already pushed changes to a file Claude needs to modify, pull first and read the changes before editing.
 - Mode contracts flow from Claude to Codex: Claude defines the spec, Codex wires it through the backend.
 - Runtime contracts flow from Codex to Claude: Codex defines API shapes and artifact paths, Claude builds against them.
+
+## New Mode Development Sequence
+
+New mode work follows a fixed phase order. This is how every mode has been built and it works. Do not skip the order unless the user explicitly overrides it.
+
+### Phase 1 — Split Confirmation
+
+- User confirms the Codex/Claude split for the new mode
+- Claude owns rubric/mode semantics
+- Codex owns backend/runtime wiring
+
+### Phase 2 — Claude Defines The Mode
+
+Claude goes first and locks:
+
+- Mode contract (axes, weights, input type, compliance penalty, consensus toggle)
+- Verdict taxonomy and classifier function
+- Phase 1, Phase 2, axis, verdict, rebuttal, and refine prompts
+- Benchmark prompt set
+- Mode spec document in `docs/`
+- Mode config in `council_modes.py`
+
+**Codex should not wire the mode before this contract exists.** Claude pushes everything to git before handing off.
+
+### Phase 3 — Codex Wires The Mode
+
+Codex goes second and implements:
+
+- Webapp preset routing
+- Input normalization
+- Mode-aware artifact/report compatibility
+- Frontend/backend contract plumbing
+- First live benchmark execution
+
+**Claude should not reinterpret runtime gaps as rubric issues until this step is complete.**
+
+### Phase 4 — Claude Analyzes The Benchmark
+
+Claude goes third and evaluates:
+
+- Model ranking
+- Flip behavior and provenance
+- Adjudicator quality
+- Verdict classification behavior
+- Mode-specific findings
+- Whether adjudicator comparison experiments are needed
+
+### Phase 5 — Codex Runs Operational Follow-Up
+
+Codex goes fourth and handles:
+
+- Adjudicator variant wiring if required
+- Comparison batch execution
+- Frontend/dashboard/runtime verification
+- Deployment-path verification
+
+### Phase 6 — Claude Finalizes The Mode
+
+Claude goes last and locks:
+
+- Adjudicator recommendation (based on A/B data)
+- Benchmark interpretation and findings
+- Updates to COUNCIL_SYSTEM.md, MODEL_PROFILES.md, COUNCIL_HISTORY.md
+- Cross-mode summary tables
+
+At this point the mode is considered operational.
