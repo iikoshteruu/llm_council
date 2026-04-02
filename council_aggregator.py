@@ -709,13 +709,13 @@ def main():
         args = ["."]
     for arg in args:
         if os.path.isdir(arg):
-            grouped = sorted(glob.glob(os.path.join(arg, "grouped*.json")))
-            ndjson = sorted(glob.glob(os.path.join(arg, "council_replies*.ndjson")))
+            grouped = sorted(glob.glob(os.path.join(arg, "**", "*grouped*.json"), recursive=True))
+            ndjson = sorted(glob.glob(os.path.join(arg, "**", "*replies*.ndjson"), recursive=True))
             # Prefer grouped exports when both exist so a run is not double-counted.
             files.extend(grouped if grouped else ndjson)
         elif os.path.isfile(arg) and arg.endswith(".ndjson"):
             files.append(arg)
-        elif os.path.isfile(arg) and arg.endswith("grouped.json"):
+        elif os.path.isfile(arg) and arg.endswith(".json") and "grouped" in os.path.basename(arg):
             files.append(arg)
 
     if not files:

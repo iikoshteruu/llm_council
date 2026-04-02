@@ -329,6 +329,14 @@ Use:
 - Effect: legal_analysis is now runnable end-to-end and has both baseline and comparison artifacts ready for adjudicator analysis
 - Comparability: establishes the first legal-analysis benchmark corpus; adjudicator comparison should be interpreted mode-internally only
 
+## 2026-04-02 — Mode-Prefixed Artifact Names And Per-Mode Runtime Directories
+
+- Area: runtime/artifacts
+- Change: artifact filenames are now mode-prefixed (`<mode>_run_<id>_raw.json`, `<mode>_run_<id>_grouped.json`, `<mode>_run_<id>_summary.json`, `<mode>_run_<id>_replies.ndjson`) and web runs now write into per-mode directories under the active artifacts root
+- Motivation: generic filenames in a shared directory became ambiguous once multiple modes were operational in the same deployment
+- Effect: artifacts now group lexically by mode and remain unambiguous in shared runtime storage; aggregator was updated to recurse through per-mode directories and pick up the new filename patterns
+- Comparability: no scoring change; storage layout and artifact discovery changed
+
 ## 2026-04-01 — Model Behavioral Profiles Published
 
 - Area: documentation/methodology

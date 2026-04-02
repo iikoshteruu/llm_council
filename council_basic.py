@@ -141,12 +141,13 @@ def build_ndjson_lines(result_obj):
 def write_run_artifacts(result_obj, artifacts_dir):
     os.makedirs(artifacts_dir, exist_ok=True)
     run_id = result_obj.get("run_id")
-    prefix = f"run_{run_id}" if run_id is not None else "run"
+    mode_name = (result_obj.get("mode") or "council").replace("/", "_")
+    prefix = f"{mode_name}_run_{run_id}" if run_id is not None else f"{mode_name}_run"
     paths = {
         "raw": os.path.join(artifacts_dir, f"{prefix}_raw.json"),
-        "grouped": os.path.join(artifacts_dir, f"grouped_{prefix}.json"),
-        "summary": os.path.join(artifacts_dir, f"summary_{prefix}.json"),
-        "ndjson": os.path.join(artifacts_dir, f"council_replies_{prefix}.ndjson"),
+        "grouped": os.path.join(artifacts_dir, f"{prefix}_grouped.json"),
+        "summary": os.path.join(artifacts_dir, f"{prefix}_summary.json"),
+        "ndjson": os.path.join(artifacts_dir, f"{prefix}_replies.ndjson"),
     }
     grouped = build_grouped_export(result_obj)
     with open(paths["raw"], "w", encoding="utf-8") as f:

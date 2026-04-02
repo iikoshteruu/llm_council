@@ -47,6 +47,19 @@ This runs the council, writes all artifacts, regenerates the aggregate, and rege
 - summary.json: lightweight stance/verdict overview. Use for quick review.
 - Adjudicator logs: `logs/run_{id}_adjudicator.jsonl` — one JSON line per adjudication call.
 
+Current runtime layout:
+
+- artifacts are written into mode-specific directories under the active artifacts root:
+  - `current/sistm_stress/`
+  - `current/code_review/`
+  - `current/research_synthesis/`
+  - `current/legal_analysis/`
+- filenames are mode-prefixed for scanability:
+  - `<mode>_run_<id>_raw.json`
+  - `<mode>_run_<id>_grouped.json`
+  - `<mode>_run_<id>_summary.json`
+  - `<mode>_run_<id>_replies.ndjson`
+
 ### Adjudicator logs
 
 Every adjudication call (phase 1, phase 2, axis scoring, verdict, flip detection, consensus, contradiction check) is logged to `logs/run_{id}_adjudicator.jsonl` inside the artifacts directory.

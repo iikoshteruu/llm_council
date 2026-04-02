@@ -129,6 +129,24 @@ def get_prompt_presets(council_mode: str):
     return PROMPT_PRESETS
 
 
+def canonical_mode_dir(council_mode: str):
+    aliases = {
+        "code_review": "code_review",
+        "code_review_gemini_adj": "code_review",
+        "code_review_mistral_adj": "code_review",
+        "research_synthesis": "research_synthesis",
+        "research_synthesis_gemini_adj": "research_synthesis",
+        "legal_analysis": "legal_analysis",
+        "legal_analysis_gemini_adj": "legal_analysis",
+        "sistm_stress": "sistm_stress",
+    }
+    return aliases.get(council_mode or "", council_mode or "sistm_stress")
+
+
+def mode_artifacts_dir(council_mode: str):
+    return os.path.join(COUNCIL_ARTIFACTS_DIR, canonical_mode_dir(council_mode))
+
+
 def materialize_preset_prompt(mode: str, council_mode: str):
     presets = get_prompt_presets(council_mode)
     prompt_path = presets.get(mode)
@@ -160,7 +178,7 @@ def run_council_with_file(prompt_file: str, run_rebuttal=False, run_refine=False
     if domain:
         cmd.extend(["--domain", domain])
     if COUNCIL_ARTIFACTS_DIR:
-        cmd.extend(["--artifacts-dir", COUNCIL_ARTIFACTS_DIR])
+        cmd.extend(["--artifacts-dir", mode_artifacts_dir(council_mode)])
     env = {**os.environ, "JSON_ONLY": "1"}
     if run_rebuttal:
         env["RUN_REBUTTAL"] = "1"
@@ -292,7 +310,7 @@ def _run_council_job(job_id, prompt_file, run_rebuttal, run_refine, run_reverse_
         if domain:
             cmd.extend(["--domain", domain])
         if COUNCIL_ARTIFACTS_DIR:
-            cmd.extend(["--artifacts-dir", COUNCIL_ARTIFACTS_DIR])
+            cmd.extend(["--artifacts-dir", mode_artifacts_dir(council_mode)])
         env = {**os.environ, "JSON_ONLY": "1", "COUNCIL_PROGRESS": "1"}
         if run_rebuttal:
             env["RUN_REBUTTAL"] = "1"
