@@ -401,6 +401,14 @@ Use:
 - Effect: threat assessment can now be selected in the browser, uses the existing code-style paste path for custom system descriptions, and writes benchmark artifacts under its own mode namespace.
 - Comparability: no scoring change. This is plumbing required to expose the mode and run its first benchmark batch.
 
+## 2026-04-02 — Threat Assessment Benchmarked and Adjudicator Decided
+
+- Area: mode system / methodology
+- Change: benchmarked threat_assessment with 6 system descriptions (API gateway, auth flow, K8s, data pipeline, CI/CD, microservice mesh). Ran adjudicator A/B (Mistral runs 93-107, Gemini runs 100-110). Promoted Gemini as default adjudicator for threat assessment.
+- Motivation: fifth mode needed adjudicator validation before being declared operational
+- Effect: same pattern as code review — Mistral over-confirms threats (82% confirmed, 1% disputed, 98 total findings) while Gemini is appropriately skeptical (75% confirmed, 13% disputed, 52 findings). GPT strongest (5/6, avg 43.9). Claude is the most persuasive rebutter — caused all position changes under Mistral adjudication — but scores lower on final output. Design heuristic confirmed: findings-first modes → Gemini, position/evidence modes → Mistral.
+- Comparability: threat_assessment now defaults to Gemini adjudication. Mistral baseline preserved as threat_assessment_mistral_adj.
+
 ---
 
 ## Current Benchmark Conclusions
@@ -432,22 +440,26 @@ Use:
 
 There is no globally best model in this system. There are mode-specific best models, and the rubric determines which strengths matter:
 
-| Model | SISTM | Code Review | Research Synthesis | Legal Analysis |
-|-------|-------|-------------|-------------------|----------------|
-| Claude Opus | Strongest | Strongest | Weakest | Weakest |
-| GPT-4.1 | Weak | Middle | Strongest | Strongest |
-| Gemini Flash | Middle | Adjudicator | Middle | Middle |
+| Model | SISTM | Code Review | Research Synthesis | Legal Analysis | Threat Assessment |
+|-------|-------|-------------|-------------------|----------------|-------------------|
+| Claude Opus | Strongest | Strongest | Weakest | Weakest | Middle (strongest rebutter) |
+| GPT-4.1 | Weak | Middle | Strongest | Strongest | Strongest |
+| Gemini Flash | Middle | Adjudicator | Middle | Middle | Adjudicator |
 
-Pattern: GPT excels when the rubric rewards citing sources. Claude excels when the rubric rewards reasoning under pressure.
+Two clusters: Claude excels under adversarial pressure (SISTM, code review). GPT excels at citation and structured analysis (research synthesis, legal, threat). Claude is the most persuasive rebutter across all five modes, even when it scores lowest.
 
-There is no universally best adjudicator. The correct adjudicator depends on the mode:
+There is no universally best adjudicator. Design heuristic:
+
+- **Findings-first modes → Gemini** (skepticism filters inflated findings)
+- **Position/evidence modes → Mistral** (calibrated scoring preserves range)
 
 | Mode | Default Adjudicator | Reason |
 |------|---------------------|--------|
 | SISTM | Mistral | Reliable flaw labeling, no sycophancy |
 | Code Review | Gemini | Mistral over-confirms, inflates severity |
 | Research Synthesis | Mistral | Gemini over-scores, ceiling compression |
-| Legal Analysis | Mistral (provisional) | Genuinely close — Gemini may be more accurate on contested questions |
+| Legal Analysis | Mistral (provisional) | Genuinely close |
+| Threat Assessment | Gemini | Mistral over-confirms threats |
 
 ---
 

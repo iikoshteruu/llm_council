@@ -682,8 +682,9 @@ MODES = {
     "research_synthesis_gemini_adj": RESEARCH_SYNTHESIS_GEMINI_ADJ,
     "legal_analysis": LEGAL_ANALYSIS_MODE,
     "legal_analysis_gemini_adj": LEGAL_ANALYSIS_GEMINI_ADJ,
-    "threat_assessment": THREAT_ASSESSMENT_MODE,
-    "threat_assessment_gemini_adj": THREAT_ASSESSMENT_GEMINI_ADJ,
+    "threat_assessment": THREAT_ASSESSMENT_GEMINI_ADJ,  # Gemini adjudicator default for findings-first
+    "threat_assessment_mistral_adj": THREAT_ASSESSMENT_MODE,  # Mistral baseline for comparison
+    "threat_assessment_gemini_adj": THREAT_ASSESSMENT_GEMINI_ADJ,  # explicit alias
 }
 
 DEFAULT_MODE = "sistm_stress"

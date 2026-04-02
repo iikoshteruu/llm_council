@@ -79,8 +79,15 @@ The adjudicator and council roster are configurable per mode. This is not option
 | SISTM Stress Test | Mistral | Reliable flaw labeling, no sycophancy across 50+ runs |
 | Code Review | Gemini | Mistral over-confirms findings and inflates severity |
 | Research Synthesis | Mistral | Gemini over-scores evidence quality (ceiling compression destroys discriminative power) |
+| Legal Analysis | Mistral (provisional) | Genuinely close — revisit after corpus expansion |
+| Threat Assessment | Gemini | Mistral over-confirms threats (82% confirmed, 1% disputed) |
 
-There is no universally best adjudicator. Each mode's adjudicator was selected through controlled A/B comparison on the same benchmark prompts with only the adjudicator swapped.
+There is no universally best adjudicator. A design heuristic has emerged:
+
+- **Findings-first modes** (code review, threat assessment) → **Gemini** — needs skepticism to filter findings
+- **Position/evidence modes** (SISTM, research synthesis) → **Mistral** — needs calibrated scoring range
+
+Each mode's adjudicator was selected through controlled A/B comparison on the same benchmark prompts with only the adjudicator swapped.
 
 ```python
 {

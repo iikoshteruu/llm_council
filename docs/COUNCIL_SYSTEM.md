@@ -684,8 +684,13 @@ The ranking is stable with either adjudicator (GPT strongest in both), but Mistr
 | Code Review | Gemini | Mistral over-confirms findings, inflates severity |
 | Research Synthesis | Mistral | Gemini over-scores evidence quality, ceiling compression |
 | Legal Analysis | Mistral (provisional) | Genuinely close — see below |
+| Threat Assessment | Gemini | Mistral over-confirms threats (82% confirmed, 1% disputed) |
 
-**There is no universally best adjudicator.** The correct adjudicator depends on the mode, just as the strongest council member depends on the mode. The system does not collapse to a single "best evaluator" assumption.
+**There is no universally best adjudicator.** The correct adjudicator depends on the mode. A design heuristic has emerged from the benchmark data:
+
+- **Findings-first modes** (code review, threat assessment) → **Gemini** — these modes need skepticism. An adjudicator that rubber-stamps every finding produces inflated threat/bug counts.
+- **Position/evidence modes** (SISTM, research synthesis) → **Mistral** — these modes need calibrated scoring across a range. Gemini ceiling-compresses scores in these modes.
+- **Legal analysis** → **Mistral (provisional)** — genuinely close, revisit after corpus expansion.
 
 #### Legal Analysis Adjudicator Comparison (Provisional)
 
@@ -772,15 +777,83 @@ GPT-4.1 is strongest in 5/6 legal analysis questions. Same pattern as research s
 
 Claude's weakest axis is rule_application (3.17) — it identifies authority but doesn't apply it to the facts as rigorously as GPT. GPT leads on precision (4.67) and scope_discipline (4.67).
 
-#### Key Finding: Four Modes, GPT Dominates Citation-Heavy Rubrics
+#### Key Finding: Five Modes, Two Behavioral Clusters
 
-| Model | SISTM | Code Review | Research Synthesis | Legal Analysis |
-|-------|-------|-------------|-------------------|----------------|
-| Claude Opus | Strongest | Strongest | Weakest | Weakest |
-| GPT-4.1 | Weak | Middle | Strongest | Strongest |
-| Gemini Flash | Middle | Adjudicator | Middle | Middle |
+| Model | SISTM | Code Review | Research Synthesis | Legal Analysis | Threat Assessment |
+|-------|-------|-------------|-------------------|----------------|-------------------|
+| Claude Opus | Strongest | Strongest | Weakest | Weakest | Middle (weakest on score, strongest in deliberation) |
+| GPT-4.1 | Weak | Middle | Strongest | Strongest | Strongest |
+| Gemini Flash | Middle | Adjudicator | Middle | Middle | Middle / Adjudicator |
 
-GPT-4.1 is strongest in both research synthesis and legal analysis — the two modes that reward citation specificity, authority identification, and precise sourcing. Claude is strongest in SISTM and code review — the two modes that reward mechanism depth, adversarial resistance, and fix quality. The pattern is consistent: **GPT excels when the rubric rewards citing sources; Claude excels when the rubric rewards reasoning under pressure.**
+Two behavioral clusters:
+
+- **Claude excels when the rubric rewards reasoning under pressure** — SISTM (adversarial debate) and code review (fix quality, evidence depth). Claude is also the most persuasive rebutter across all five modes, including modes where it scores lowest.
+- **GPT excels when the rubric rewards citing sources and structured analysis** — research synthesis (citation specificity), legal analysis (authority identification), threat assessment (exploitability assessment, mitigation quality).
+
+**Strongest debater is not always strongest final synthesizer.** Claude caused more position changes in other models than any other council member across every mode tested — even in modes where it ranked last on final score.
+
+---
+
+## Threat Assessment Mode
+
+Threat assessment mode (`threat_assessment`) evaluates security analysis of systems, architectures, or configurations. Uses the findings-first pattern from code review — findings are the unit, not positions.
+
+Full spec: [docs/MODE_SPEC_THREAT_ASSESSMENT.md](MODE_SPEC_THREAT_ASSESSMENT.md)
+
+### Scoring Axes
+
+| Axis | Weight | What It Measures |
+|------|--------|-----------------|
+| threat_identification | 2.0 | Real, exploitable attack vectors grounded in the specific system |
+| exploitability_assessment | 2.0 | How practical the attack is in context |
+| impact_analysis | 1.5 | Blast radius — data exposure, escalation, disruption |
+| mitigation_quality | 1.5 | Specific, actionable mitigations vs generic advice |
+| attack_chain_awareness | 1.0 | Multi-step attack chain identification |
+| scope_discipline | 0.5 | Stays on the system vs generic security checklists |
+
+### Phase 1 Threat Labels
+
+| Label | Definition |
+|-------|------------|
+| confirmed_threat | Real, exploitable attack vector specific to this system |
+| theoretical_risk | Possible in general but not demonstrated in context |
+| false_positive | Not a security vulnerability in context |
+| wrong_severity | Real threat, severity over/under-stated |
+| generic_advice | Security guidance not tied to a specific finding |
+| chain_identified | Identifies multi-step attack path |
+
+### Verdict Classification
+
+| Type | Condition | Confidence |
+|------|-----------|------------|
+| threats_confirmed | Confirmed threats, reviewers agree | High-Moderate |
+| disputed | Reviewers disagree on key findings | Moderate-Low |
+| low_risk | No confirmed threats | High |
+| inconclusive | Low quality across all reviewers | Low (withheld) |
+
+### Benchmark Results (6-system corpus, Gemini adjudicator)
+
+Systems: API gateway, auth flow, K8s deployment, data pipeline, CI/CD pipeline, microservice mesh.
+
+| Model | Avg Score | StdDev | Strongest | Weakest | Net |
+|-------|----------|--------|-----------|---------|-----|
+| GPT-4.1 | 43.9 | 0.9 | 5 | 0 | +5 |
+| Claude Opus | 39.4 | 4.3 | 1 | 3 | -2 |
+| Mistral | 36.5 | 5.5 | 0 | 3 | -3 |
+
+GPT strongest in 5/6 threat assessments. Claude is the most persuasive in deliberation — caused all position changes in other models under Mistral adjudication — but scores lower on final output.
+
+### Adjudicator Comparison
+
+| Metric | Mistral Adj | Gemini Adj |
+|--------|------------|------------|
+| Total findings | 98 | 52 |
+| Confirmed | 80 (82%) | 39 (75%) |
+| Disputed | 1 (1%) | 7 (13%) |
+| threats_confirmed verdict | 5/6 | 0/6 |
+| disputed verdict | 1/6 | 6/6 |
+
+Same pattern as code review: Mistral over-confirms (1% dispute rate), Gemini is appropriately skeptical (13%). For security assessments, false confirmation is dangerous. `threat_assessment` defaults to Gemini adjudication.
 
 ---
 
