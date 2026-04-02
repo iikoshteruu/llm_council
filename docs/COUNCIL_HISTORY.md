@@ -377,6 +377,14 @@ Use:
 - Effect: **opposite conclusion from code review.** Mistral is the better adjudicator for research synthesis. Gemini over-scores evidence quality (all-5s ceiling compression on GPT, destroying discriminative power). Mistral distributes scores realistically (3.50-5.00 range). Ranking is stable with both adjudicators (GPT strongest in both), but Mistral provides better calibration. `research_synthesis` locked to Mistral adjudication as default.
 - Comparability: adjudicator choice is now a confirmed mode-dependent variable. Cross-mode adjudicator summary: SISTM→Mistral, code_review→Gemini, research_synthesis→Mistral. There is no universally best adjudicator.
 
+## 2026-04-02 — Legal Analysis Mode Benchmarked and Adjudicator Compared
+
+- Area: mode system / methodology
+- Change: benchmarked legal_analysis mode with 6 prompts (Section 230, GDPR, FAA preemption, dormant Commerce Clause, geofence warrants, AI copyright). Ran adjudicator A/B (runs 80-85 Mistral, runs 86-91 Gemini).
+- Motivation: fourth mode — tests statutory interpretation and precedent application, different from mechanism reasoning (SISTM), bug finding (code review), and evidence synthesis (research synthesis)
+- Effect: GPT-4.1 strongest again (5/6, avg 37.5) — same pattern as research synthesis. Claude weakest (0/6, avg 32.2). GPT's advantage in citation-heavy rubrics now confirmed across two modes. Adjudicator comparison is genuinely close: Mistral rubber-stamps all as settled/high, Gemini flags FAA preemption and dormant Commerce as contested (arguably more accurate). Mistral defaulted as provisional choice.
+- Comparability: legal_analysis is a separate mode. Adjudicator default is provisional — may change after corpus expansion.
+
 ---
 
 ## Current Benchmark Conclusions
@@ -408,11 +416,13 @@ Use:
 
 There is no globally best model in this system. There are mode-specific best models, and the rubric determines which strengths matter:
 
-| Model | SISTM | Code Review | Research Synthesis |
-|-------|-------|-------------|-------------------|
-| Claude Opus | Strongest | Strongest | Weakest |
-| GPT-4.1 | Weak | Middle | Strongest |
-| Gemini Flash | Middle | Adjudicator | Middle |
+| Model | SISTM | Code Review | Research Synthesis | Legal Analysis |
+|-------|-------|-------------|-------------------|----------------|
+| Claude Opus | Strongest | Strongest | Weakest | Weakest |
+| GPT-4.1 | Weak | Middle | Strongest | Strongest |
+| Gemini Flash | Middle | Adjudicator | Middle | Middle |
+
+Pattern: GPT excels when the rubric rewards citing sources. Claude excels when the rubric rewards reasoning under pressure.
 
 There is no universally best adjudicator. The correct adjudicator depends on the mode:
 
@@ -421,6 +431,7 @@ There is no universally best adjudicator. The correct adjudicator depends on the
 | SISTM | Mistral | Reliable flaw labeling, no sycophancy |
 | Code Review | Gemini | Mistral over-confirms, inflates severity |
 | Research Synthesis | Mistral | Gemini over-scores, ceiling compression |
+| Legal Analysis | Mistral (provisional) | Genuinely close — Gemini may be more accurate on contested questions |
 
 ---
 

@@ -683,8 +683,104 @@ The ranking is stable with either adjudicator (GPT strongest in both), but Mistr
 | SISTM | Mistral | Reliable flaw labeling, no sycophancy across 50+ runs |
 | Code Review | Gemini | Mistral over-confirms findings, inflates severity |
 | Research Synthesis | Mistral | Gemini over-scores evidence quality, ceiling compression |
+| Legal Analysis | Mistral (provisional) | Genuinely close — see below |
 
 **There is no universally best adjudicator.** The correct adjudicator depends on the mode, just as the strongest council member depends on the mode. The system does not collapse to a single "best evaluator" assumption.
+
+#### Legal Analysis Adjudicator Comparison (Provisional)
+
+Controlled A/B across 6 legal prompts (runs 80-85 vs 86-91).
+
+| Metric | Mistral Adjudicator | Gemini Adjudicator |
+|--------|--------------------|--------------------|
+| GPT avg score | 37.5 | 41.5 |
+| Claude avg score | 32.2 | 37.2 |
+| GPT strongest | 5/6 | 4/6 |
+| Claude strongest | 0/6 | 2/6 |
+| Verdict: settled/high | 6/6 | 2/6 |
+| Verdict: contested | 0/6 | 2/6 |
+
+This is the first mode where the adjudicator decision is genuinely uncertain:
+
+- **Mistral**: Consistent settled/high verdicts. Cleaner ranking separation. But may be rubber-stamping legal consensus — it classified FAA preemption and dormant Commerce Clause as settled when both are genuinely debated.
+- **Gemini**: More nuanced verdicts — flagged two questions as contested. Gives Claude credit on GDPR and dormant Commerce. Score spread is reasonable (not ceiling-compressed). But harder to benchmark against because verdicts vary more.
+
+**Current default: Mistral.** This is provisional. If corpus expansion confirms that Gemini consistently flags genuinely debated questions as contested while Mistral rubber-stamps them, Gemini becomes the better choice. Revisit after expanding the legal benchmark.
+
+---
+
+## Legal Analysis Mode
+
+Legal analysis mode (`legal_analysis`) evaluates statutory interpretation, precedent application, and regulatory reasoning. Scoped to policy/regulatory interpretation — not broad litigation strategy or jurisdiction-comparative law.
+
+Full spec: [docs/MODE_SPEC_LEGAL_ANALYSIS.md](MODE_SPEC_LEGAL_ANALYSIS.md)
+
+### Scoring Axes
+
+| Axis | Weight | What It Measures |
+|------|--------|-----------------|
+| authority_identification | 2.0 | Identifies controlling statute, case, or regulation |
+| rule_application | 2.0 | Applies the rule to the specific facts, not just states it |
+| distinction_quality | 1.5 | Distinguishes from superficially similar but legally distinct cases |
+| counterargument_awareness | 1.5 | Identifies and addresses the strongest opposing argument |
+| precision | 1.0 | Uses legal terms correctly, cites specific sections |
+| scope_discipline | 0.5 | Stays in legal analysis vs policy opinion |
+
+### Phase 1 Legal Labels
+
+| Label | Definition |
+|-------|------------|
+| well_grounded | Identifies controlling authority AND applies it correctly |
+| authority_missing | Analyzes without naming the statute or case |
+| misapplication | Right authority, wrong application |
+| conflation | Treats legally distinct concepts as interchangeable |
+| policy_drift | Substitutes policy opinion for legal interpretation |
+| overbroad_claim | Ignores exceptions, circuit splits, or qualifying language |
+| well_distinguished | Correctly identifies why a similar case does not apply |
+
+### Verdict Classification
+
+| Type | Condition | Confidence |
+|------|-----------|------------|
+| settled | Models agree on controlling authority and application | High |
+| contested | Models disagree on which authority controls or how it applies | Moderate |
+| unsettled | Models acknowledge genuine legal uncertainty | Moderate |
+| inconclusive | Low quality across all models | Low (withheld) |
+
+### Benchmark Results (6-question corpus, Mistral adjudicator)
+
+Questions: Section 230 + algorithms, GDPR vs US discovery, FAA preemption, dormant Commerce Clause, Fourth Amendment geofence warrants, AI copyright.
+
+| Model | Avg Score | StdDev | Strongest | Weakest | Net |
+|-------|----------|--------|-----------|---------|-----|
+| GPT-4.1 | 37.5 | 2.4 | 5 | 0 | +5 |
+| Gemini Flash | 35.7 | 1.9 | 1 | 1 | 0 |
+| Claude Opus | 32.2 | 2.8 | 0 | 5 | -5 |
+
+GPT-4.1 is strongest in 5/6 legal analysis questions. Same pattern as research synthesis — GPT's citation specificity and precision advantage extends to legal authority citation.
+
+#### Axis Scores
+
+| Axis | Claude | GPT | Gemini |
+|------|--------|-----|--------|
+| authority_identification | 4.50 | 4.83 | 4.67 |
+| rule_application | 3.17 | 4.17 | 3.83 |
+| distinction_quality | 3.67 | 4.33 | 4.17 |
+| counterargument_awareness | 3.33 | 4.00 | 3.83 |
+| precision | 3.67 | 4.67 | 4.17 |
+| scope_discipline | 3.50 | 4.67 | 4.33 |
+
+Claude's weakest axis is rule_application (3.17) — it identifies authority but doesn't apply it to the facts as rigorously as GPT. GPT leads on precision (4.67) and scope_discipline (4.67).
+
+#### Key Finding: Four Modes, GPT Dominates Citation-Heavy Rubrics
+
+| Model | SISTM | Code Review | Research Synthesis | Legal Analysis |
+|-------|-------|-------------|-------------------|----------------|
+| Claude Opus | Strongest | Strongest | Weakest | Weakest |
+| GPT-4.1 | Weak | Middle | Strongest | Strongest |
+| Gemini Flash | Middle | Adjudicator | Middle | Middle |
+
+GPT-4.1 is strongest in both research synthesis and legal analysis — the two modes that reward citation specificity, authority identification, and precise sourcing. Claude is strongest in SISTM and code review — the two modes that reward mechanism depth, adversarial resistance, and fix quality. The pattern is consistent: **GPT excels when the rubric rewards citing sources; Claude excels when the rubric rewards reasoning under pressure.**
 
 ---
 
