@@ -28,6 +28,8 @@ The dashboard shows aggregate model performance, axis scores, flip behavior, dom
 
 ![Dashboard — research synthesis mode](docs/images/dashboard_research_synthesis.png)
 
+![Dashboard — legal analysis mode](docs/images/dashboard_legal_analysis.png)
+
 ## Architecture
 
 The pipeline is a four-stage process. Each stage builds on the last, and the system is designed so that no stage can be skipped or faked.
