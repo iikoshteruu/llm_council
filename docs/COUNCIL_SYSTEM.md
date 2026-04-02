@@ -556,6 +556,101 @@ The system was developed iteratively across 63+ runs. Key milestones:
 | 51–54 | Code review benchmark (Mistral adjudicator baseline) |
 | 55–58 | Adjudicator comparison: Mistral vs Gemini on code review |
 | 60–63 | Code review validated with Gemini adjudicator (Claude restored). Gemini promoted to default code review adjudicator |
+| 64–67 | Expanded code review corpus: JS, Go, SQL injection, TS error handling |
+| 68–73 | Research synthesis mode benchmarked. Third mode produces third different ranking — validates mode architecture |
+
+---
+
+## Research Synthesis Mode
+
+Research synthesis mode (`research_synthesis`) evaluates competing claims about causal or empirical questions where evidence quality and uncertainty handling matter more than argument structure.
+
+Full spec: [docs/MODE_SPEC_RESEARCH_SYNTHESIS.md](MODE_SPEC_RESEARCH_SYNTHESIS.md)
+
+### Key difference from other modes
+
+In SISTM, hedging is penalized. In research synthesis, appropriate uncertainty is rewarded — but false equivalence is penalized. Acknowledging genuine limits in the evidence is strength; refusing to weigh evidence is weakness.
+
+### Scoring Axes
+
+| Axis | Weight | What It Measures |
+|------|--------|-----------------|
+| evidence_quality | 2.0 | Cites specific studies, data, effect sizes — not "studies show" |
+| causal_inference | 2.0 | Distinguishes correlation from causation, identifies confounders |
+| uncertainty_handling | 1.5 | Acknowledges limits, quantifies confidence, avoids false certainty |
+| citation_specificity | 1.0 | Names specific sources (authors, years, datasets) |
+| counterargument_strength | 1.5 | Addresses strongest opposing evidence, not strawman |
+| synthesis_quality | 1.0 | Integrates evidence into a coherent position, not a pro/con list |
+
+### Phase 1 Evidence Labels
+
+| Label | Definition |
+|-------|------------|
+| well_sourced | Cites specific evidence with identifiable sources |
+| vague_sourcing | Appeals to "research" or "studies" without specifics |
+| false_certainty | Presents contested evidence as settled fact |
+| false_equivalence | Treats strong and weak evidence as equally weighted |
+| cherry_picking | Cites evidence selectively, ignoring contradictory findings |
+| unsupported_claim | Makes claims without any evidence |
+| appropriate_uncertainty | Acknowledges genuine limits in the evidence base |
+
+### Verdict Classification
+
+| Type | Condition | Confidence |
+|------|-----------|------------|
+| supported | Models agree on evidence direction, high quality scores | High-Moderate |
+| contested | Models disagree on evidence interpretation | Moderate-Low |
+| insufficient_evidence | Models agree evidence is limited | Moderate |
+| inconclusive | Low evidence quality across all models | Low (withheld) |
+
+### Benchmark Results (6-question corpus, Mistral adjudicator)
+
+Questions: intermittent fasting, remote work, minimum wage, nuclear safety, screen time, COVID masking.
+
+#### Model Performance
+
+| Model | Avg Score | StdDev | Strongest | Weakest | Net |
+|-------|----------|--------|-----------|---------|-----|
+| GPT-4.1 | 40.2 | 2.2 | 5 | 0 | +5 |
+| Gemini Flash | 36.8 | 3.2 | 1 | 2 | -1 |
+| Claude Opus | 36.2 | 2.8 | 0 | 4 | -4 |
+
+GPT-4.1 is strongest in 5/6 questions — a complete reversal from SISTM and code review where Claude dominates.
+
+#### Axis Scores
+
+| Axis | Claude | GPT-4.1 | Gemini |
+|------|--------|---------|--------|
+| evidence_quality | 3.83 | 4.50 | 4.17 |
+| causal_inference | 3.50 | 4.00 | 3.67 |
+| uncertainty_handling | 4.33 | 4.67 | 4.17 |
+| citation_specificity | 4.00 | 5.00 | 4.17 |
+| counterargument_strength | 4.00 | 4.33 | 4.00 |
+| synthesis_quality | 4.00 | 4.67 | 4.00 |
+
+GPT leads every axis. Citation specificity at 5.0 — it names specific studies, authors, dates, and effect sizes. Claude's weakest axis is causal_inference (3.50) — it reasons about mechanisms but is less rigorous about causation vs correlation.
+
+#### Flip Behavior
+
+| Model | Held | Cited | Uncited | Flip% | Conviction |
+|-------|------|-------|---------|-------|------------|
+| Claude | 3 | 3 | 0 | 50% | 1.00 |
+| GPT-4.1 | 0 | 6 | 0 | 100% | 0.00 |
+| Gemini | 2 | 4 | 0 | 66.7% | 0.67 |
+
+GPT flipped on every question — all cited. In research synthesis, it treats every rebuttal as evidence worth incorporating. Zero conviction bonus but zero penalties. Claude's rebuttals caused 4 GPT flips and 4 Gemini flips — Claude is the most persuasive debater even though it scores lowest.
+
+#### Key Finding: Three Modes, Three Rankings
+
+| Model | SISTM | Code Review | Research Synthesis |
+|-------|-------|-------------|-------------------|
+| Claude Opus | Strongest (+52 net) | Strongest (+6 net) | Weakest (-4 net) |
+| GPT-4.1 | Weak (recency flips) | Middle (stable) | Strongest (+5 net) |
+| Gemini Flash | Middle | Adjudicator | Middle (-1 net) |
+
+**The "best model" depends entirely on the task rubric.** There is no universally strongest model. Each mode produces a different hierarchy because it measures different capabilities. This is the definitive validation of the multi-mode architecture.
+
+GPT's strength in research synthesis is citation specificity and evidence sourcing. Claude's strength in SISTM is mechanism depth and rhetorical resistance. The same model that folds under adversarial pressure (GPT in SISTM) excels at evidence synthesis — and the same model that dominates adversarial debate (Claude in SISTM) is less rigorous about causation vs correlation.
 
 ---
 

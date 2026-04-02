@@ -353,6 +353,14 @@ Use:
 - Effect: anyone landing on the repo sees the pipeline architecture and real output immediately
 - Comparability: documentation-only change
 
+## 2026-04-01 — Research Synthesis Mode Added and Benchmarked
+
+- Area: mode system / methodology
+- Change: added `research_synthesis` as third mode with uncertainty-aware evidence evaluation rubric. 6-question benchmark corpus (intermittent fasting, remote work, minimum wage, nuclear safety, screen time, COVID masking). Mode-specific rebuttal/refine prompts (multi-paragraph, citation-required).
+- Motivation: prove the pipeline can evaluate evidence quality and uncertainty handling, not just argument structure (SISTM) or technical correctness (code review)
+- Effect: **three modes, three different model rankings.** GPT-4.1 is strongest in research synthesis (5/6, avg 40.2) while Claude is weakest (0/6, avg 36.2). Complete reversal from SISTM and code review. This is the definitive validation that mode-specific rubrics produce materially different model hierarchies.
+- Comparability: research_synthesis is a separate mode; not comparable to SISTM or code_review metrics
+
 ---
 
 ## Current Benchmark Conclusions
@@ -371,6 +379,24 @@ Use:
 - Mistral is not currently competitive as a code-review council member in the benchmark corpus
 - regression awareness is a real cross-model weakness, not a prompt artifact
 - the code-review benchmark generalizes across Python, JavaScript, Go, and TypeScript
+
+### Research Synthesis
+
+- GPT-4.1 is strongest (5/6, avg 40.2) — citation specificity 5.0, evidence quality 4.50
+- Claude Opus is weakest (0/6, avg 36.2) — strongest rebutter but weakest synthesizer
+- GPT's 100% flip rate is all cited — evidence integration, not recency weakness
+- Claude's rebuttals caused 8 flips in other models despite scoring lowest — most persuasive debater
+- Three modes produce three different rankings: the "best model" depends on the rubric
+
+### Cross-Mode
+
+There is no globally best model in this system. There are mode-specific best models, and the rubric determines which strengths matter:
+
+| Model | SISTM | Code Review | Research Synthesis |
+|-------|-------|-------------|-------------------|
+| Claude Opus | Strongest | Strongest | Weakest |
+| GPT-4.1 | Weak | Middle | Strongest |
+| Gemini Flash | Middle | Adjudicator | Middle |
 
 ---
 
