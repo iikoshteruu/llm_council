@@ -1,0 +1,17 @@
+Identify attack vectors in this microservice architecture:
+
+- 12 microservices communicating over gRPC within an AWS VPC
+- Service mesh: Istio with mTLS enabled between services
+- API gateway: Kong, terminates TLS, forwards to services via HTTP
+- Authentication: OAuth2 tokens validated at the gateway only; internal services trust the X-User-ID header set by the gateway
+- Authorization: each service checks X-User-Role header for access control; header set by gateway from token claims
+- Service discovery: Consul, agents running on each node, no ACL tokens configured
+- Database: each service has its own PostgreSQL instance; connection strings in Kubernetes ConfigMaps
+- Shared Redis cluster used for caching and pub/sub between services
+- Redis: no authentication, accessible from any pod in the namespace
+- Message queue: RabbitMQ with default guest/guest credentials, management UI exposed on port 15672 within the VPC
+- Logging: structured JSON logs sent to Elasticsearch via Fluentd; no log sanitization for PII
+- Service A calls Service B synchronously for payment processing; Service B calls an external payment gateway over HTTPS
+- External payment gateway webhook callbacks arrive at a public endpoint with HMAC signature verification
+- HMAC secret for webhook verification is the same across all environments (dev/staging/prod)
+- No circuit breakers configured; service failures cascade through synchronous call chains

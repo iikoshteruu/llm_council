@@ -1,0 +1,17 @@
+Evaluate the security of this CI/CD pipeline:
+
+- Source: GitHub repository with branch protection on main (1 approval required)
+- CI: GitHub Actions, runs on ubuntu-latest hosted runners
+- Build: Docker image built in CI, pushed to ECR with tag matching git SHA
+- Secrets: AWS credentials stored as GitHub repository secrets, injected as environment variables
+- Dependencies: npm install runs without lockfile integrity checks; pip install -r requirements.txt without hash verification
+- Tests: unit tests run in CI, no SAST/DAST/SCA scanning
+- Deploy: CI pushes to ECR, then runs kubectl apply with a service account token stored as a GitHub secret
+- The kubectl service account has cluster-admin privileges
+- Artifacts: build logs and test results stored in GitHub Actions, retained for 90 days
+- No artifact signing or provenance attestation
+- PR reviews: required for main, but CI runs on all branches including forks
+- Fork PRs have access to the same GitHub Actions workflow files
+- No environment separation: same pipeline deploys to staging and production
+- Rollback: manual kubectl rollout undo; no automated rollback on health check failure
+- Notifications: Slack webhook for build failures, webhook URL stored in plaintext in workflow YAML

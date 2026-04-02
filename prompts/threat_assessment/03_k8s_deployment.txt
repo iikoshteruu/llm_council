@@ -1,0 +1,17 @@
+Identify attack vectors in this Kubernetes deployment:
+
+- 3-node cluster on AWS EKS (Kubernetes 1.28)
+- All pods run as root (no securityContext configured)
+- Default namespace used for all workloads (no namespace isolation)
+- Pod-to-pod communication unrestricted (no NetworkPolicies)
+- Service accounts: default SA used for all pods, no IRSA configured
+- Secrets stored as Kubernetes Secrets (base64 encoded, not encrypted at rest)
+- Container images pulled from a public Docker Hub registry, no image signing
+- Ingress controller: nginx-ingress with default configuration
+- No pod security standards or admission controllers (no OPA/Gatekeeper)
+- etcd encryption: disabled
+- RBAC: cluster-admin bound to a service account used by CI/CD pipeline
+- Node IAM role has S3 full access, EC2 full access, and STS assume-role
+- Kubelet API accessible on port 10250 without authentication from within the VPC
+- No audit logging configured
+- Horizontal pod autoscaler configured, no resource limits set on pods

@@ -1,0 +1,16 @@
+Evaluate the threat surface of this authentication and session management flow:
+
+- User submits email + password to /auth/login
+- Server validates credentials against bcrypt hashes in PostgreSQL
+- On success, server issues a session token (UUID v4) stored in Redis with 7-day TTL
+- Session token returned in response body as JSON; client stores it in localStorage
+- All subsequent requests include the token in an Authorization header
+- Password reset: server sends a reset link via email with a token valid for 1 hour
+- Reset token is a hex-encoded SHA256 of (user_id + timestamp + server secret)
+- After password reset, existing sessions are NOT invalidated
+- Account lockout: 10 failed attempts in 5 minutes triggers a 15-minute lockout
+- Lockout is per-email, not per-IP
+- No MFA support
+- Admin users use the same authentication flow; admin status is a boolean column in the users table
+- /auth/me endpoint returns full user profile including role, email, and internal user ID
+- Session tokens are not bound to IP or user agent

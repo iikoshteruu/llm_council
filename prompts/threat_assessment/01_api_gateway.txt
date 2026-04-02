@@ -1,0 +1,14 @@
+Assess the security of this API gateway configuration:
+
+- Public-facing REST API on port 443 behind an AWS ALB
+- Authentication via JWT tokens issued by a custom auth service
+- JWTs signed with HS256 using a shared secret stored in an environment variable
+- Token expiry set to 24 hours, no refresh token rotation
+- Rate limiting: 1000 requests/minute per API key, no per-user rate limiting
+- CORS: Access-Control-Allow-Origin set to "*" for the /api/v2/ endpoints
+- Request bodies up to 50MB accepted on all endpoints
+- API keys passed in query parameters for legacy /v1/ endpoints
+- Internal microservices communicate over HTTP (not HTTPS) within the VPC
+- Logging: request headers and response codes logged, request bodies not logged
+- No WAF configured; ALB forwards all traffic directly to the API containers
+- Health check endpoint at /health returns 200 with no authentication

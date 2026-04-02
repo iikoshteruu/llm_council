@@ -540,6 +540,139 @@ LEGAL_ANALYSIS_GEMINI_ADJ = {
 }
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Threat Assessment Mode
+# ═══════════════════════════════════════════════════════════════════════════════
+
+THREAT_ASSESSMENT_AXES = [
+    ("threat_identification", "Does the response identify real, exploitable attack vectors specific to this system — not just theoretical risks or generic security advice?"),
+    ("exploitability_assessment", "Does the response assess how difficult the attack is to execute, what preconditions are needed, and whether it's practical in context?"),
+    ("impact_analysis", "Does the response correctly assess the blast radius — data exposure, privilege escalation, service disruption, lateral movement?"),
+    ("mitigation_quality", "Are the recommended mitigations specific, actionable, and proportionate — not generic 'use encryption' advice?"),
+    ("attack_chain_awareness", "Does the response identify how individual vulnerabilities combine into multi-step attack chains?"),
+    ("scope_discipline", "Does the response stay focused on the described system vs drifting into generic security best practices or compliance checklists?"),
+]
+
+THREAT_ASSESSMENT_AXIS_WEIGHTS = {
+    "threat_identification": 2.0,
+    "exploitability_assessment": 2.0,
+    "impact_analysis": 1.5,
+    "mitigation_quality": 1.5,
+    "attack_chain_awareness": 1.0,
+    "scope_discipline": 0.5,
+}
+
+THREAT_ASSESSMENT_PHASE1_PROMPT = "You are a threat assessment adjudicator (phase 1). You will receive a system description and one security reviewer's findings. Evaluate each finding independently. Respond with valid JSON only: {\"findings\": [{\"finding\": \"<summary>\", \"label\": \"<one of: confirmed_threat, theoretical_risk, false_positive, wrong_severity, generic_advice, chain_identified>\", \"reason\": \"<short phrase>\"}]}. Label guidance: confirmed_threat = real, exploitable attack vector specific to this system with supporting evidence. theoretical_risk = possible in general but not demonstrated to be exploitable in this specific system. false_positive = not a security vulnerability in context. wrong_severity = real threat but severity over- or under-stated. generic_advice = security guidance not tied to a specific finding. chain_identified = identifies how multiple findings combine into a multi-step attack path. Be precise."
+
+THREAT_ASSESSMENT_PHASE2_PROMPT = "You are a threat assessment adjudicator (phase 2). You will receive a system description, all security reviewers' findings, and phase-1 threat annotations. Merge findings across reviewers: deduplicate equivalent threats, flag disagreements, identify threats only one reviewer caught, and assess overall threat posture. Respond with valid JSON only: {\"merged_findings\": [{\"finding\": \"<summary>\", \"status\": \"<confirmed | disputed | unique>\", \"models_agree\": [\"<model names>\"], \"models_disagree\": [\"<model names>\"], \"severity\": \"<critical | high | medium | low | informational>\"}], \"strongest\": \"<model name>\", \"weakest\": \"<model name>\", \"attack_chains\": <number of multi-step chains identified>, \"differences\": \"<substantive or stylistic>\"}."
+
+THREAT_ASSESSMENT_AXIS_PROMPT = "You are a terse rater for a single threat assessment axis. Use only the supplied system description, the reviewer's findings, and the phase-1 annotations. Do not use outside knowledge. Respond with valid JSON only, no prose: {\"axis\":\"AXIS\",\"score\":N,\"reason\":\"...\"}. Score must be an integer 1-5 (1=very poor, 5=excellent). Reason max 15 words. A review that lists generic risks without grounding them in the specific system scores 1 on threat_identification. A review that identifies a vulnerability without assessing exploitability scores 1 on exploitability_assessment. Axis description: AXIS_DESC."
+
+THREAT_ASSESSMENT_VERDICT_PROMPT = "You are the council's threat assessment lead. You have received a system description, three independent security assessments, their quality annotations, axis scores, and merged findings. Deliver the council's threat assessment. Rules: (1) List each confirmed threat with severity, exploitability assessment, and recommended mitigation. (2) Note any disputed findings and why reviewers disagreed. (3) Identify attack chains if multiple threats combine. (4) Do not include generic security advice not tied to specific findings. (5) Do not mention the models or the review process. Present the assessment as if you performed it yourself. (6) Prioritize by severity and exploitability. Respond with valid JSON only: {\"verdict\": \"<threat assessment summary — 3-6 sentences>\", \"threat_count\": <total confirmed threats>, \"critical_count\": <critical severity count>, \"chains_identified\": <attack chain count>, \"basis\": \"<one sentence: which reviewer's analysis anchored this>\"}."
+
+THREAT_ASSESSMENT_REBUTTAL_PROMPT = "You are a security peer reviewer. Given the other models' threat assessments, write one paragraph identifying the most significant threat they missed, over-stated, or under-stated. Cite the specific system component or configuration that supports your critique. If you agree with the assessments, identify what additional attack surface or chain they should have explored."
+
+THREAT_ASSESSMENT_REFINE_PROMPT = "You are revising your threat assessment after seeing peer critiques. Address the strongest objection raised — if a peer identified a threat you missed, incorporate it with severity and mitigation. If a peer challenged your severity rating, defend or correct it with specific reasoning about exploitability and impact. Do not mention that you are revising. Present your updated assessment directly."
+
+
+def threat_assessment_verdict_classifier(q_replies, phase2=None):
+    """Deterministic verdict classification for threat assessment mode.
+
+    Uses phase2.merged_findings as source of truth (same pattern as code review).
+
+    Types:
+      threats_confirmed — confirmed threats exist, reviewers agree
+      disputed — reviewers disagree on key findings
+      low_risk — no confirmed threats (theoretical only or clean)
+      inconclusive — low quality across all reviewers
+    """
+    if not q_replies:
+        return "inconclusive", "low", "no_replies"
+
+    # Primary source: phase2 merged_findings
+    merged = []
+    if isinstance(phase2, dict):
+        merged = phase2.get("merged_findings", [])
+
+    if merged:
+        confirmed = [f for f in merged if isinstance(f, dict) and f.get("status") == "confirmed"]
+        disputed = [f for f in merged if isinstance(f, dict) and f.get("status") == "disputed"]
+        unique = [f for f in merged if isinstance(f, dict) and f.get("status") == "unique"]
+
+        # Check if all findings are informational/generic
+        all_low = all(
+            isinstance(f, dict) and f.get("severity") in ("informational", "low")
+            for f in merged
+        )
+
+        total_real = len(confirmed) + len(disputed) + len(unique)
+
+        if total_real == 0 or all_low:
+            return "low_risk", "high", "no_significant_threats"
+
+        if confirmed and not disputed:
+            has_critical = any(f.get("severity") == "critical" for f in confirmed)
+            confidence = "high" if len(confirmed) >= 2 or has_critical else "moderate"
+            return "threats_confirmed", confidence, f"{len(confirmed)}_confirmed_threats"
+
+        if confirmed and disputed:
+            confidence = "moderate" if len(confirmed) > len(disputed) else "low"
+            return "disputed", confidence, f"{len(confirmed)}_confirmed_{len(disputed)}_disputed"
+
+        if disputed and not confirmed:
+            return "disputed", "low", f"{len(disputed)}_disputed_no_confirmed"
+
+        if unique and not confirmed and not disputed:
+            return "threats_confirmed", "moderate", f"{len(unique)}_unique_threats"
+
+        return "inconclusive", "low", "mixed_signals"
+
+    # Fallback: keyword heuristic on reply text
+    sorted_replies = sorted(q_replies, key=lambda x: x.get("weighted_score", 0), reverse=True)
+    threat_keywords = {"vulnerability", "exploit", "attack", "injection", "escalation", "bypass", "exposure", "unauthorized", "ssrf", "xss", "rce"}
+    reviewers_with_threats = 0
+    for r in sorted_replies:
+        text = (r.get("text") or "").lower()
+        if any(kw in text for kw in threat_keywords):
+            reviewers_with_threats += 1
+
+    n = len(sorted_replies)
+    if reviewers_with_threats == 0:
+        return "low_risk", "moderate", "no_threat_keywords"
+    elif reviewers_with_threats == n:
+        return "threats_confirmed", "moderate", "all_reviewers_found_threats"
+    else:
+        return "disputed", "low", "partial_threat_identification"
+
+
+THREAT_ASSESSMENT_MODE = {
+    "name": "threat_assessment",
+    "label": "Threat Assessment",
+    "axes": THREAT_ASSESSMENT_AXES,
+    "axis_weights": THREAT_ASSESSMENT_AXIS_WEIGHTS,
+    "phase1_prompt": THREAT_ASSESSMENT_PHASE1_PROMPT,
+    "phase2_prompt": THREAT_ASSESSMENT_PHASE2_PROMPT,
+    "axis_prompt": THREAT_ASSESSMENT_AXIS_PROMPT,
+    "verdict_prompt": THREAT_ASSESSMENT_VERDICT_PROMPT,
+    "verdict_classifier": threat_assessment_verdict_classifier,
+    "compliance_penalty": 1.0,
+    "use_consensus": False,  # findings replace consensus
+    "input_type": "code",  # system descriptions pasted like code
+    "adjudicator_model": None,  # TBD after benchmark
+    "council_models": None,
+    "rebuttal_prompt": THREAT_ASSESSMENT_REBUTTAL_PROMPT,
+    "refine_prompt": THREAT_ASSESSMENT_REFINE_PROMPT,
+}
+
+THREAT_ASSESSMENT_GEMINI_ADJ = {
+    **THREAT_ASSESSMENT_MODE,
+    "name": "threat_assessment_gemini_adj",
+    "label": "Threat Assessment (Gemini Adjudicator)",
+    "adjudicator_model": "google",
+    "council_models": ["openai", "anthropic", "mistral"],
+}
+
+
 MODES = {
     "sistm_stress": SISTM_MODE,
     "code_review": CODE_REVIEW_GEMINI_ADJ,
@@ -549,6 +682,8 @@ MODES = {
     "research_synthesis_gemini_adj": RESEARCH_SYNTHESIS_GEMINI_ADJ,
     "legal_analysis": LEGAL_ANALYSIS_MODE,
     "legal_analysis_gemini_adj": LEGAL_ANALYSIS_GEMINI_ADJ,
+    "threat_assessment": THREAT_ASSESSMENT_MODE,
+    "threat_assessment_gemini_adj": THREAT_ASSESSMENT_GEMINI_ADJ,
 }
 
 DEFAULT_MODE = "sistm_stress"
