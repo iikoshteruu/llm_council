@@ -401,13 +401,154 @@ RESEARCH_SYNTHESIS_GEMINI_ADJ = {
     "council_models": ["openai", "anthropic", "mistral"],
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Legal Analysis Mode
+# ═══════════════════════════════════════════════════════════════════════════════
+
+LEGAL_ANALYSIS_AXES = [
+    ("authority_identification", "Does the response identify the controlling statute, regulation, or case law — not just 'the law says'?"),
+    ("rule_application", "Does the response correctly apply the identified rule to the facts of the question, not just state the rule?"),
+    ("distinction_quality", "Does the response distinguish the question from superficially similar but legally distinct scenarios?"),
+    ("counterargument_awareness", "Does the response identify the strongest opposing legal argument and address it?"),
+    ("precision", "Does the response use legal terms correctly, cite specific sections/subsections, and avoid vague generalities?"),
+    ("scope_discipline", "Does the response stay within the question's legal framework vs drifting into policy opinion, moral argument, or comparative law?"),
+]
+
+LEGAL_ANALYSIS_AXIS_WEIGHTS = {
+    "authority_identification": 2.0,
+    "rule_application": 2.0,
+    "distinction_quality": 1.5,
+    "counterargument_awareness": 1.5,
+    "precision": 1.0,
+    "scope_discipline": 0.5,
+}
+
+LEGAL_ANALYSIS_PHASE1_PROMPT = "You are a legal analysis adjudicator (phase 1). You will receive a legal question and one model's response. Evaluate the response's legal reasoning quality. Respond with valid JSON only: {\"replies\": [{\"model\": \"<name>\", \"legal_label\": \"<one of: well_grounded, authority_missing, misapplication, conflation, policy_drift, overbroad_claim, well_distinguished>\", \"legal_reason\": \"<short phrase>\", \"authorities_cited\": <number of specific statutes/cases/regulations cited>, \"rule_applied\": \"<yes, partial, or no>\"}]}. Label guidance: well_grounded = identifies controlling authority AND applies it to the specific facts. authority_missing = analyzes without naming the statute, regulation, or case. misapplication = names the right authority but applies the wrong standard or reaches an incorrect conclusion under it. conflation = treats legally distinct concepts or provisions as interchangeable. policy_drift = substitutes policy opinion for legal interpretation. overbroad_claim = states a categorical rule while ignoring known exceptions, circuit splits, or qualifying language. well_distinguished = correctly identifies why a similar-seeming case or provision does not apply. Be precise."
+
+LEGAL_ANALYSIS_PHASE2_PROMPT = "You are a legal analysis adjudicator (phase 2). You will receive a legal question, all model responses, and phase-1 legal quality annotations. Evaluate which response provides the strongest legal analysis. Respond with valid JSON only: {\"consensus\": \"<one sentence: what the weight of legal authority supports>\", \"authority_agreement\": \"<agree, partial, or disagree>\", \"strongest\": \"<model name>\", \"weakest\": \"<model name>\", \"key_distinction\": \"<one sentence: main legal disagreement, if any>\"}. Strongest means the most precise identification of controlling authority with correct application to the facts. Weakest means the most vague, unsupported, or legally incorrect. Do not relabel legal quality; rely on phase-1 annotations. Be precise."
+
+LEGAL_ANALYSIS_AXIS_PROMPT = "You are a terse rater for a single legal analysis axis. Use only the supplied question, response, legal quality label, and context. Do not use outside knowledge. Respond with valid JSON only, no prose: {\"axis\":\"AXIS\",\"score\":N,\"reason\":\"...\"}. Score must be an integer 1-5 (1=very poor, 5=excellent). Reason max 15 words. A response that says 'the law generally provides' without naming the statute scores 1 on authority_identification. A response that recites a rule without applying it to the facts scores 1 on rule_application. Axis description: AXIS_DESC."
+
+LEGAL_ANALYSIS_VERDICT_PROMPT = "You are the council's legal analysis lead. You have received a legal question, three independent legal analyses, their quality annotations, axis scores, and the authority agreement assessment. Deliver the council's legal analysis. Rules: (1) State the controlling authority and how it applies to the question. (2) If there is a genuine legal split or ambiguity, identify it precisely. (3) Cite the most specific statutory or case authority mentioned by any reviewer. (4) Do not substitute policy opinion for legal analysis. (5) Do not mention the models or the review process. Present the analysis as if you performed it yourself. (6) Three to five sentences. Respond with valid JSON only: {\"verdict\": \"<the analysis>\", \"legal_direction\": \"<settled, split, or open>\", \"controlling_authority\": \"<the primary statute/case/regulation>\", \"basis\": \"<one sentence: which reviewer's authority identification anchored this>\"}."
+
+LEGAL_ANALYSIS_REBUTTAL_PROMPT = "You are a legal critic. Given the other models' legal analyses, write one paragraph identifying the strongest specific legal error, misapplication, or overlooked authority in the other analyses. Cite the specific statute, case, or regulatory provision that supports your critique. If you find the analyses legally sound, identify what additional authority or distinction would strengthen the conclusion."
+
+LEGAL_ANALYSIS_REFINE_PROMPT = "You are revising your legal analysis after seeing critiques. Address the strongest legal objection raised. If the critique identifies a controlling authority you missed, incorporate it. If it identifies a misapplication, correct it. If you disagree with the critique, explain the specific legal basis for your position. Do not mention that you are revising. Present your updated analysis directly."
+
+
+def legal_analysis_verdict_classifier(q_replies, phase2=None):
+    """Deterministic verdict classification for legal analysis mode.
+
+    Types:
+      settled — models agree on controlling authority and application
+      contested — models disagree on which authority controls or how it applies
+      unsettled — models acknowledge genuine legal uncertainty (circuit split, open question)
+      inconclusive — low quality across all models
+    """
+    if not q_replies:
+        return "inconclusive", "low", "no_replies"
+
+    sorted_replies = sorted(q_replies, key=lambda x: x.get("weighted_score", 0), reverse=True)
+    scores = [r.get("weighted_score", 0) for r in sorted_replies]
+    top_score = scores[0]
+    score_gap = top_score - scores[-1] if len(scores) > 1 else 0
+
+    # Check legal labels from phase1
+    legal_labels = []
+    for r in sorted_replies:
+        phase1 = r.get("phase1", [])
+        for p in (phase1 if isinstance(phase1, list) else [phase1]):
+            if isinstance(p, dict):
+                label = p.get("legal_label") or p.get("flaw_label")
+                if label:
+                    legal_labels.append(label)
+
+    # Check phase2 authority agreement
+    authority_agreement = None
+    if isinstance(phase2, dict):
+        authority_agreement = phase2.get("authority_agreement")
+
+    # Count label types
+    well_grounded = legal_labels.count("well_grounded") + legal_labels.count("well_distinguished")
+    weak_analysis = legal_labels.count("authority_missing") + legal_labels.count("policy_drift")
+    errors = legal_labels.count("misapplication") + legal_labels.count("conflation") + legal_labels.count("overbroad_claim")
+
+    # Check flips
+    uncited_flips = 0
+    for r in sorted_replies:
+        flip_obj = r.get("flip")
+        if isinstance(flip_obj, dict) and flip_obj.get("flip") and flip_obj.get("flip_reason") == "uncited":
+            uncited_flips += 1
+
+    n = len(sorted_replies)
+
+    # Classification
+    if uncited_flips >= 2 or weak_analysis == n:
+        verdict_type = "inconclusive"
+        basis = "low_legal_quality" if weak_analysis == n else "high_flip_instability"
+        return verdict_type, "low", basis
+
+    if well_grounded >= 2 and authority_agreement == "agree" and score_gap >= 3:
+        return "settled", "high", "authority_agreement_strong_gap"
+
+    if well_grounded >= 2 and authority_agreement == "agree":
+        return "settled", "moderate", "authority_agreement_moderate_gap"
+
+    if authority_agreement == "disagree" or errors >= 2:
+        confidence = "moderate" if well_grounded >= 1 else "low"
+        return "contested", confidence, "authority_disagreement"
+
+    # Check for genuine legal uncertainty — models acknowledge split
+    if isinstance(phase2, dict):
+        key_dist = (phase2.get("key_distinction") or "").lower()
+        if any(term in key_dist for term in ("circuit split", "unresolved", "open question", "unsettled", "no clear precedent")):
+            if well_grounded >= 1:
+                return "unsettled", "moderate", "acknowledged_legal_uncertainty"
+
+    if well_grounded >= 1 and score_gap >= 3:
+        return "settled", "moderate", "strongest_well_grounded"
+
+    return "contested", "low", "mixed_legal_signals"
+
+
+LEGAL_ANALYSIS_MODE = {
+    "name": "legal_analysis",
+    "label": "Legal Analysis",
+    "axes": LEGAL_ANALYSIS_AXES,
+    "axis_weights": LEGAL_ANALYSIS_AXIS_WEIGHTS,
+    "phase1_prompt": LEGAL_ANALYSIS_PHASE1_PROMPT,
+    "phase2_prompt": LEGAL_ANALYSIS_PHASE2_PROMPT,
+    "axis_prompt": LEGAL_ANALYSIS_AXIS_PROMPT,
+    "verdict_prompt": LEGAL_ANALYSIS_VERDICT_PROMPT,
+    "verdict_classifier": legal_analysis_verdict_classifier,
+    "compliance_penalty": 1.0,
+    "use_consensus": True,
+    "input_type": "question",
+    "adjudicator_model": None,  # TBD after benchmark comparison
+    "council_models": None,
+    "rebuttal_prompt": LEGAL_ANALYSIS_REBUTTAL_PROMPT,
+    "refine_prompt": LEGAL_ANALYSIS_REFINE_PROMPT,
+}
+
+# Experiment variant for adjudicator comparison
+LEGAL_ANALYSIS_GEMINI_ADJ = {
+    **LEGAL_ANALYSIS_MODE,
+    "name": "legal_analysis_gemini_adj",
+    "label": "Legal Analysis (Gemini Adjudicator)",
+    "adjudicator_model": "google",
+    "council_models": ["openai", "anthropic", "mistral"],
+}
+
+
 MODES = {
     "sistm_stress": SISTM_MODE,
-    "code_review": CODE_REVIEW_GEMINI_ADJ,  # Gemini adjudicator is the default for code review
-    "code_review_mistral_adj": CODE_REVIEW_MODE,  # Mistral adjudicator kept as comparison baseline
-    "code_review_gemini_adj": CODE_REVIEW_GEMINI_ADJ,  # explicit alias
-    "research_synthesis": RESEARCH_SYNTHESIS_MODE,  # Mistral adjudicator (current default)
-    "research_synthesis_gemini_adj": RESEARCH_SYNTHESIS_GEMINI_ADJ,  # experiment variant
+    "code_review": CODE_REVIEW_GEMINI_ADJ,
+    "code_review_mistral_adj": CODE_REVIEW_MODE,
+    "code_review_gemini_adj": CODE_REVIEW_GEMINI_ADJ,
+    "research_synthesis": RESEARCH_SYNTHESIS_MODE,
+    "research_synthesis_gemini_adj": RESEARCH_SYNTHESIS_GEMINI_ADJ,
+    "legal_analysis": LEGAL_ANALYSIS_MODE,
+    "legal_analysis_gemini_adj": LEGAL_ANALYSIS_GEMINI_ADJ,
 }
 
 DEFAULT_MODE = "sistm_stress"
