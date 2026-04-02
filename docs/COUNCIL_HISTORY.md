@@ -393,6 +393,14 @@ Use:
 - Effect: GPT-4.1 strongest again (5/6, avg 37.5) — same pattern as research synthesis. Claude weakest (0/6, avg 32.2). GPT's advantage in citation-heavy rubrics now confirmed across two modes. Adjudicator comparison is genuinely close: Mistral rubber-stamps all as settled/high, Gemini flags FAA preemption and dormant Commerce as contested (arguably more accurate). Mistral defaulted as provisional choice.
 - Comparability: legal_analysis is a separate mode. Adjudicator default is provisional — may change after corpus expansion.
 
+## 2026-04-02 — Threat Assessment Mode Wired Through Web And Artifact Pipeline
+
+- Area: mode system / runtime
+- Change: added `threat_assessment` and `threat_assessment_gemini_adj` to web preset routing, frontend mode selection, mode-aware input handling, and per-mode artifact storage. Threat prompts are normalized from `.txt` system descriptions into the internal one-turn JSONL format before benchmark execution.
+- Motivation: fifth mode contract was locked in `council_modes.py`, but it was not yet reachable through the web/runtime contract or benchmark tooling.
+- Effect: threat assessment can now be selected in the browser, uses the existing code-style paste path for custom system descriptions, and writes benchmark artifacts under its own mode namespace.
+- Comparability: no scoring change. This is plumbing required to expose the mode and run its first benchmark batch.
+
 ---
 
 ## Current Benchmark Conclusions

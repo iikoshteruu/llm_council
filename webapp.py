@@ -81,6 +81,14 @@ LEGAL_ANALYSIS_PRESETS = {
     "05_fourth_amendment_geofence": os.path.join(BASE_DIR, "prompts", "legal_analysis", "05_fourth_amendment_geofence.jsonl"),
     "06_ai_copyright": os.path.join(BASE_DIR, "prompts", "legal_analysis", "06_ai_copyright.jsonl"),
 }
+THREAT_ASSESSMENT_PRESETS = {
+    "01_api_gateway": os.path.join(BASE_DIR, "prompts", "threat_assessment", "01_api_gateway.txt"),
+    "02_auth_flow": os.path.join(BASE_DIR, "prompts", "threat_assessment", "02_auth_flow.txt"),
+    "03_k8s_deployment": os.path.join(BASE_DIR, "prompts", "threat_assessment", "03_k8s_deployment.txt"),
+    "04_data_pipeline": os.path.join(BASE_DIR, "prompts", "threat_assessment", "04_data_pipeline.txt"),
+    "05_ci_cd": os.path.join(BASE_DIR, "prompts", "threat_assessment", "05_ci_cd.txt"),
+    "06_microservice_mesh": os.path.join(BASE_DIR, "prompts", "threat_assessment", "06_microservice_mesh.txt"),
+}
 
 app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="")
 RUN_JOBS = {}
@@ -126,6 +134,8 @@ def get_prompt_presets(council_mode: str):
         return RESEARCH_SYNTHESIS_PRESETS
     if council_mode in {"legal_analysis", "legal_analysis_gemini_adj"}:
         return LEGAL_ANALYSIS_PRESETS
+    if council_mode in {"threat_assessment", "threat_assessment_gemini_adj"}:
+        return THREAT_ASSESSMENT_PRESETS
     return PROMPT_PRESETS
 
 
@@ -138,6 +148,8 @@ def canonical_mode_dir(council_mode: str):
         "research_synthesis_gemini_adj": "research_synthesis",
         "legal_analysis": "legal_analysis",
         "legal_analysis_gemini_adj": "legal_analysis",
+        "threat_assessment": "threat_assessment",
+        "threat_assessment_gemini_adj": "threat_assessment",
         "sistm_stress": "sistm_stress",
     }
     return aliases.get(council_mode or "", council_mode or "sistm_stress")
@@ -504,9 +516,9 @@ def api_run():
         if mode in presets:
             prompt_path, preset_temp_path = materialize_preset_prompt(mode, council_mode)
             temp_file_path = preset_temp_path
-            domain = council_mode if council_mode in {"code_review", "research_synthesis", "legal_analysis", "legal_analysis_gemini_adj"} else mode
+            domain = council_mode if council_mode in {"code_review", "research_synthesis", "legal_analysis", "legal_analysis_gemini_adj", "threat_assessment", "threat_assessment_gemini_adj"} else mode
         elif mode == "custom":
-            domain = data.get("domain") or (council_mode if council_mode in {"code_review", "research_synthesis", "legal_analysis", "legal_analysis_gemini_adj"} else "custom")
+            domain = data.get("domain") or (council_mode if council_mode in {"code_review", "research_synthesis", "legal_analysis", "legal_analysis_gemini_adj", "threat_assessment", "threat_assessment_gemini_adj"} else "custom")
         # else: prompt_path already set
 
         code, out, err = run_council_with_file(prompt_path, run_rebuttal_flag, run_refine_flag, run_reverse_flag, domain=domain, council_mode=council_mode)
@@ -595,9 +607,9 @@ def api_run_async():
         prompt_path, preset_temp_path = materialize_preset_prompt(mode, council_mode)
         if preset_temp_path:
             temp_path = preset_temp_path
-        domain = council_mode if council_mode in {"code_review", "research_synthesis", "legal_analysis", "legal_analysis_gemini_adj"} else mode
+        domain = council_mode if council_mode in {"code_review", "research_synthesis", "legal_analysis", "legal_analysis_gemini_adj", "threat_assessment", "threat_assessment_gemini_adj"} else mode
     elif mode == "custom":
-        domain = data.get("domain") or (council_mode if council_mode in {"code_review", "research_synthesis", "legal_analysis", "legal_analysis_gemini_adj"} else "custom")
+        domain = data.get("domain") or (council_mode if council_mode in {"code_review", "research_synthesis", "legal_analysis", "legal_analysis_gemini_adj", "threat_assessment", "threat_assessment_gemini_adj"} else "custom")
 
     job_id = start_async_run(prompt_path, run_rebuttal_flag, run_refine_flag, run_reverse_flag, domain=domain, council_mode=council_mode, temp_file_path=temp_path)
     return jsonify({"job_id": job_id, "status": "queued"})

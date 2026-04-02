@@ -245,6 +245,7 @@
             <option value="code_review">Code Review</option>
             <option value="research_synthesis">Research Synthesis</option>
             <option value="legal_analysis">Legal Analysis</option>
+            <option value="threat_assessment">Threat Assessment</option>
           </select>
         </div>
         <div>
@@ -378,6 +379,13 @@ const MODE_META = {
     placeholder: 'Paste a legal analysis question here...',
     customModeLabel: 'Custom Question',
   },
+  threat_assessment: {
+    label: 'Threat Assessment',
+    modeLabel: 'Prompt',
+    inputLabel: 'System description',
+    placeholder: 'Paste a system description, architecture, or deployment config here...',
+    customModeLabel: 'Custom System Description',
+  },
 };
 const PRESETS_BY_MODE = {
   sistm_stress: [
@@ -435,6 +443,15 @@ const PRESETS_BY_MODE = {
     ['05_fourth_amendment_geofence', '05 Fourth Amendment Geofence'],
     ['06_ai_copyright', '06 AI Copyright'],
     ['custom', 'Custom Question'],
+  ],
+  threat_assessment: [
+    ['01_api_gateway', '01 API Gateway'],
+    ['02_auth_flow', '02 Auth Flow'],
+    ['03_k8s_deployment', '03 K8s Deployment'],
+    ['04_data_pipeline', '04 Data Pipeline'],
+    ['05_ci_cd', '05 CI/CD'],
+    ['06_microservice_mesh', '06 Microservice Mesh'],
+    ['custom', 'Custom System Description'],
   ],
 };
 
@@ -573,12 +590,13 @@ $('runBtn').onclick = async () => {
       const msg =
         councilMode === 'code_review' ? 'Code review mode requires pasted code.' :
         (councilMode === 'research_synthesis' || councilMode === 'legal_analysis') ? 'This mode requires a question.' :
+        councilMode === 'threat_assessment' ? 'Threat assessment mode requires a system description.' :
         'Custom mode requires JSONL input.';
       $('results').innerHTML = `<div class="error-box">${msg}</div>`;
       btn.disabled = false;
       return;
     }
-    if (councilMode === 'code_review' || councilMode === 'research_synthesis' || councilMode === 'legal_analysis') body.code = input;
+    if (councilMode === 'code_review' || councilMode === 'research_synthesis' || councilMode === 'legal_analysis' || councilMode === 'threat_assessment') body.code = input;
     else body.jsonl = input;
   }
 
