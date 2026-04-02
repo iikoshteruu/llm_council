@@ -164,12 +164,13 @@ def materialize_preset_prompt(mode: str, council_mode: str):
     prompt_path = presets.get(mode)
     if not prompt_path:
         return None, None
-    if council_mode != "code_review":
+    if council_mode not in {"code_review", "threat_assessment", "threat_assessment_gemini_adj"}:
         return prompt_path, None
 
     with open(prompt_path, "r", encoding="utf-8") as f:
-        code_text = f.read()
-    turns, normalize_error = normalize_custom_input("code_review", code_text=code_text)
+        input_text = f.read()
+    normalize_mode = "code_review" if council_mode == "code_review" else "threat_assessment"
+    turns, normalize_error = normalize_custom_input(normalize_mode, code_text=input_text)
     if normalize_error:
         raise ValueError(normalize_error)
     validation_error = validate_turns(turns)
