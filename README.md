@@ -68,7 +68,15 @@ Modes are defined in `council_modes.py`. Adding a new mode means defining a new 
 
 ### Adjudicator configuration
 
-The adjudicator and council roster are configurable per mode:
+The adjudicator and council roster are configurable per mode. This is not optional — benchmark data shows that the correct adjudicator depends on the mode:
+
+| Mode | Default Adjudicator | Why |
+|------|---------------------|-----|
+| SISTM Stress Test | Mistral | Reliable flaw labeling, no sycophancy across 50+ runs |
+| Code Review | Gemini | Mistral over-confirms findings and inflates severity |
+| Research Synthesis | Mistral | Gemini over-scores evidence quality (ceiling compression destroys discriminative power) |
+
+There is no universally best adjudicator. Each mode's adjudicator was selected through controlled A/B comparison on the same benchmark prompts with only the adjudicator swapped.
 
 ```python
 {
@@ -77,7 +85,7 @@ The adjudicator and council roster are configurable per mode:
 }
 ```
 
-The adjudicator is automatically excluded from the council roster. A model never evaluates its own output.
+The adjudicator is automatically excluded from the council roster. A model never evaluates its own output. When adding a new mode, run an adjudicator comparison before locking the default — do not assume a prior mode's adjudicator choice transfers.
 
 ## How this compares
 

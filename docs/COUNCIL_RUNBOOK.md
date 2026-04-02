@@ -298,6 +298,7 @@ The following are mode-agnostic and do not need to be redefined:
 - Do not reuse one mode's rubric for a different task. Code review, legal analysis, and stress testing are judged by different axes. If you need different axes, you need a new mode.
 - Do not reuse one mode's phase 1 or phase 2 prompts for a task with different evaluation units. Flaw labels are not finding labels. Position consensus is not finding deduplication.
 - The verdict classifier is deterministic code, not an LLM prompt. If your mode has different verdict types, you must write a new classifier function.
+- **Do not assume a prior mode's adjudicator choice transfers to a new mode.** Benchmark data shows that the correct adjudicator is mode-dependent: Mistral is better for SISTM and research synthesis, Gemini is better for code review. For every new mode, run a controlled A/B comparison (same prompts, same council, only adjudicator swapped) before locking the default. An adjudicator that is appropriately skeptical in one mode may over-score or under-score in another.
 
 ---
 
