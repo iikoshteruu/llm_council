@@ -4,6 +4,14 @@ A multi-model deliberation and evaluation pipeline with mode-specific rubrics, c
 
 Multiple LLMs answer each question independently, deliberate through adversarial rebuttal and refinement rounds, and are then evaluated by an independent adjudicator across mode-specific quality axes. The pipeline produces a deterministic verdict with confidence classification -- not just analysis, but a final answer that survived deliberation.
 
+### What separates this from other multi-model systems
+
+- **Mode-specific rubrics** instead of one generic "multi-LLM" frame -- five modes, each with its own axes, flaw taxonomy, verdict types, and scoring weights. Different tasks are judged by different standards.
+- **Adjudicator selection based on measured mode behavior**, not preference -- controlled A/B experiments determined that findings-first modes need Gemini's skepticism while position/evidence modes need Mistral's calibrated scoring. No universal "best evaluator" assumption.
+- **Empirical model profiling across distinct task types** -- benchmark data shows Claude is strongest under adversarial pressure, GPT is strongest at citation-heavy analysis, and the same model behaves fundamentally differently under different rubrics. Three models, five modes, five different rankings.
+- **Reproducible artifacts, aggregation, reporting, and dashboarding** -- every run produces structured artifacts, adjudicator logs, and mode-aware aggregate analytics. The dashboard shows cross-run model performance, flip behavior, discriminative power, and consensus stability.
+- **End-to-end operational validation**, not just CLI demos -- containerized deployment with web UI, live progress tracking, mode-specific preset selection, and server-side artifact persistence.
+
 ## Screenshots
 
 ### Verdict output — adversarial stress test
