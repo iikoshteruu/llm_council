@@ -30,7 +30,7 @@ This produces a causal graph of deliberation influence — not just "who changed
 An independent model evaluates every response across mode-specific quality axes. Each axis has a fixed weight. Scoring is deterministic — no randomness, no subjective judgment calls in the scoring formula.
 
 The adjudicator also labels each response with mode-specific quality markers:
-- SISTM: flaw labels (hedge, evasion, frame shift, abstraction, etc.)
+- proprietary argumentation method: flaw labels (hedge, evasion, frame shift, abstraction, etc.)
 - Code review / threat assessment: finding labels (confirmed, false positive, theoretical risk, etc.)
 - Research synthesis: evidence labels (well sourced, vague sourcing, false certainty, etc.)
 - Legal analysis: legal quality labels (well grounded, authority missing, misapplication, etc.)
@@ -69,7 +69,7 @@ If modes shared a rubric, the system would collapse into generic assistant scori
 
 | Mode | What it evaluates | Unit of evaluation | Verdict types |
 |------|-------------------|-------------------|---------------|
-| SISTM Stress Test | Adversarial reasoning under binary pressure | Position | unanimous / majority / contested / unstable |
+| Proprietary Argumentation Method | Adversarial reasoning under binary pressure | Position | unanimous / majority / contested / unstable |
 | Code Review | Bug identification and fix quality | Finding | confirmed / disputed / clean / inconclusive |
 | Research Synthesis | Evidence quality and uncertainty handling | Evidence | supported / contested / insufficient / inconclusive |
 | Legal Analysis | Statutory interpretation and precedent application | Legal rule | settled / contested / unsettled / inconclusive |
@@ -97,7 +97,7 @@ We compare:
 
 | Mode | Better Adjudicator | Why |
 |------|-------------------|-----|
-| SISTM | Mistral | Reliable flaw labeling, no sycophancy across 50+ runs |
+| proprietary argumentation method | Mistral | Reliable flaw labeling, no sycophancy across 50+ runs |
 | Code Review | Gemini | Mistral over-confirms findings (2% dispute rate vs Gemini's 18%) |
 | Research Synthesis | Mistral | Gemini ceiling-compresses scores (all-5s on GPT, destroying discriminative power) |
 | Legal Analysis | Mistral (provisional) | Genuinely close — Gemini may be more accurate on contested questions |
@@ -108,7 +108,7 @@ We compare:
 A pattern emerged from the data:
 
 - **Findings-first modes** (code review, threat assessment) → **Gemini**. These modes need an adjudicator that challenges findings. An adjudicator that confirms everything produces inflated counts.
-- **Position/evidence modes** (SISTM, research synthesis) → **Mistral**. These modes need calibrated scoring across a range. Gemini compresses scores to the ceiling in these modes, losing the ability to distinguish good from excellent.
+- **Position/evidence modes** (proprietary argumentation method, research synthesis) → **Mistral**. These modes need calibrated scoring across a range. Gemini compresses scores to the ceiling in these modes, losing the ability to distinguish good from excellent.
 
 This is not a hard rule. It is a defensible heuristic backed by controlled experiments. Every new mode should run its own adjudicator comparison before locking the default.
 
@@ -120,7 +120,7 @@ The most important finding from five modes of benchmarking:
 
 **There is no universally best model. The "best" model depends entirely on the task rubric.**
 
-| Model | SISTM | Code Review | Research Synthesis | Legal Analysis | Threat Assessment |
+| Model | proprietary argumentation method | Code Review | Research Synthesis | Legal Analysis | Threat Assessment |
 |-------|-------|-------------|-------------------|----------------|-------------------|
 | Claude Opus | Strongest | Strongest | Weakest | Weakest | Middle |
 | GPT-4.1 | Weak | Middle | Strongest | Strongest | Strongest |
@@ -128,7 +128,7 @@ The most important finding from five modes of benchmarking:
 
 ### Two behavioral clusters
 
-**Claude excels when the rubric rewards reasoning under pressure.** In SISTM (adversarial debate) and code review (fix quality, evidence depth), Claude dominates. It is also the most persuasive rebutter across all five modes — its challenges cause more position changes in other models than any other council member, including in modes where Claude scores lowest on the final output.
+**Claude excels when the rubric rewards reasoning under pressure.** In proprietary argumentation method (adversarial debate) and code review (fix quality, evidence depth), Claude dominates. It is also the most persuasive rebutter across all five modes — its challenges cause more position changes in other models than any other council member, including in modes where Claude scores lowest on the final output.
 
 **GPT excels when the rubric rewards citing sources and structured analysis.** In research synthesis (citation specificity), legal analysis (authority identification), and threat assessment (exploitability assessment), GPT dominates. Its tendency to incorporate rebuttals — a weakness in adversarial modes where it looks like capitulation — becomes evidence integration in synthesis modes where it looks like thoroughness.
 
@@ -138,7 +138,7 @@ GPT-4.1's flip behavior changes across modes:
 
 | Mode | Flip rate | Flip quality | Interpretation |
 |------|-----------|-------------|----------------|
-| SISTM | ~30% | Recency-driven (uncited) | Capitulation — adopts last rebuttal without evidence |
+| proprietary argumentation method | ~30% | Recency-driven (uncited) | Capitulation — adopts last rebuttal without evidence |
 | Code Review | 37.5% | Evidence-driven (all cited) | Correction — updates based on evidence |
 | Research Synthesis | 100% | Evidence-driven (all cited) | Integration — treats every rebuttal as evidence |
 | Threat Assessment | 100% (Mistral adj) / 16.7% (Gemini adj) | All cited | Varies with adjudicator context |
@@ -170,7 +170,7 @@ Conviction bonus is added to the weighted score after axis scoring. It rewards g
 
 **Flip provenance** tracks which model's rebuttal caused each flip. This produces a causal map of deliberation influence — the council can identify not just who changed, but who changed whom.
 
-**Reverse-rebuttal diagnostics** present rebuttals in reversed order. If a model flips in normal order but holds in reversed order (or vice versa), the flip is order-dependent — recency bias, not conviction. This was used to confirm GPT's recency-driven behavior in SISTM mode.
+**Reverse-rebuttal diagnostics** present rebuttals in reversed order. If a model flips in normal order but holds in reversed order (or vice versa), the flip is order-dependent — recency bias, not conviction. This was used to confirm GPT's recency-driven behavior in proprietary argumentation mode.
 
 ---
 
@@ -183,7 +183,7 @@ weighted_score = sum(axis_score * axis_weight for each axis)
 ```
 
 Modifiers:
-- **Compliance penalty**: In modes with format constraints (SISTM: one sentence), noncompliant replies are scored at 0.6x. Modes without format constraints (code review, research synthesis, legal analysis, threat assessment) use a 1.0x multiplier.
+- **Compliance penalty**: In modes with format constraints (proprietary argumentation method: one sentence), noncompliant replies are scored at 0.6x. Modes without format constraints (code review, research synthesis, legal analysis, threat assessment) use a 1.0x multiplier.
 - **Conviction bonus**: +2, 0, or -1 based on flip behavior (see above).
 
 Axes score independently. A low score on one axis does not affect other axes. This was a deliberate design decision after a "death cascade" bug was discovered in early runs where one low axis zeroed all others.
@@ -227,7 +227,7 @@ The aggregator computes per-model statistics across multiple runs:
 - **Flip provenance**: Which model's rebuttals most frequently cause position changes in other models?
 - **Per-domain breakdown**: Model performance by topic area.
 
-Aggregation is mode-aware. SISTM and code review runs are never mixed in the same metric tables.
+Aggregation is mode-aware. proprietary argumentation method and code review runs are never mixed in the same metric tables.
 
 ---
 

@@ -8,11 +8,11 @@ Do not treat these as universal truths. They are rubric-dependent benchmark find
 
 ## Claude Opus
 
-- **Best modes**: `sistm_stress`, `code_review`
+- **Best modes**: proprietary argumentation method, `code_review`
 - **Primary strengths**: mechanism depth, evidence quality in code review, fix quality, persuasive rebuttals
 - **Primary weakness**: weaker than GPT on citation specificity and causal discipline in `research_synthesis`
 
-### SISTM
+### proprietary argumentation method
 
 - Strongest overall in the benchmark corpus
 - Most order-independent under reverse-rebuttal testing
@@ -41,9 +41,9 @@ Do not treat these as universal truths. They are rubric-dependent benchmark find
 
 - **Best mode**: `research_synthesis`
 - **Primary strengths**: citation specificity, evidence integration, consistency
-- **Primary weakness**: recency-sensitive flipping in `SISTM`
+- **Primary weakness**: recency-sensitive flipping in `proprietary argumentation method`
 
-### SISTM
+### proprietary argumentation method
 
 - Middle-to-weak performer
 - Highest flip rate in adversarial reasoning
@@ -74,7 +74,7 @@ Do not treat these as universal truths. They are rubric-dependent benchmark find
 - **Primary strengths**: skepticism, conservative finding evaluation, balanced middle performance
 - **Primary weakness**: less dominant than Claude/GPT as a council member in the tested modes
 
-### SISTM
+### proprietary argumentation method
 
 - Middle performer
 - Can hedge initially, then improve under deliberation
@@ -101,11 +101,11 @@ Do not treat these as universal truths. They are rubric-dependent benchmark find
 
 ## Mistral
 
-- **Best roles**: adjudicator for `sistm_stress`, adjudicator for `research_synthesis`
+- **Best roles**: adjudicator for the proprietary argumentation method, adjudicator for `research_synthesis`
 - **Primary strengths**: structured adjudication, calibrated research-synthesis scoring
 - **Primary weakness**: weak council member in `code_review`, unstable reviewer behavior when compared with Claude/GPT
 
-### SISTM
+### proprietary argumentation method
 
 - Best adjudicator currently used
 - Reliable for flaw labeling, consensus handling, and weighted scoring inputs
@@ -133,7 +133,7 @@ Do not treat these as universal truths. They are rubric-dependent benchmark find
 
 ## Cross-Mode Summary
 
-| Model | SISTM | Code Review | Research Synthesis |
+| Model | proprietary argumentation method | Code Review | Research Synthesis |
 |-------|-------|-------------|--------------------|
 | Claude Opus | Strongest | Strongest | Weakest |
 | GPT-4.1 | Middle / weakest on adversarial stability | Stable middle | Strongest |
@@ -144,7 +144,7 @@ Do not treat these as universal truths. They are rubric-dependent benchmark find
 
 ## Adjudicator Heuristics
 
-- `sistm_stress` -> **Mistral**
+- proprietary argumentation method -> **Mistral**
 - `code_review` -> **Gemini**
 - `research_synthesis` -> **Mistral**
 
@@ -156,7 +156,7 @@ There is no universal best adjudicator. Adjudicator choice is mode-dependent.
 
 - Do not carry model expectations from one mode into another.
 - Treat flips differently by mode:
-  - `SISTM`: frequent uncited flips are weakness
+  - `proprietary argumentation method`: frequent uncited flips are weakness
   - `code_review`: cited flips usually reflect evidence-driven correction
   - `research_synthesis`: frequent cited flips can be evidence integration rather than instability
 - Strongest debater is not always strongest final synthesizer.

@@ -10,7 +10,7 @@ This document defines what Claude owns and does not own in this project. Read `C
 - **Benchmark analysis** — interpreting run results, comparing adjudicators, identifying model behavioral patterns, producing cross-mode findings
 - **Documentation of methodology and findings** — COUNCIL_SYSTEM.md (mode sections, benchmark results, cross-mode tables), MODEL_PROFILES.md content updates, COUNCIL_HISTORY.md entries for methodology changes
 - **Frontend rendering and UX** — how results, verdicts, dashboards, and badges are displayed in the browser. CSS, HTML structure, JavaScript rendering functions
-- **Prompt design** — SISTM domain prompts, code review test files, research synthesis questions, legal analysis questions
+- **Prompt design** — proprietary argumentation method domain prompts, code review test files, research synthesis questions, legal analysis questions
 - **council_modes.py** — mode config dicts, verdict classifier functions, axis definitions, prompt strings
 - **Pipeline scoring logic** — `compute_weighted_score`, `council_verdict`, `classify_verdict`, `majority_consensus`, `adjudicate` dispatcher, `AdjudicatorLogger`
 - **README content** — architecture overview, comparison table, mode documentation, screenshots

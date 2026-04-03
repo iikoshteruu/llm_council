@@ -4,7 +4,7 @@
 
 Evaluate competing claims about causal or empirical questions where evidence quality and uncertainty handling matter more than argument structure.
 
-SISTM tests: "Can the model commit to a position and defend it under pressure?"
+proprietary argumentation method tests: "Can the model commit to a position and defend it under pressure?"
 Code review tests: "Can the model find bugs and cite evidence?"
 Research synthesis tests: "Can the model weigh competing evidence, acknowledge uncertainty, and reach a justified conclusion?"
 
@@ -35,11 +35,11 @@ Total weight: 9.0
 
 ### Axis rationale
 
-**evidence_quality (2.0)** — Highest weight alongside causal_inference. The core question is whether the model can ground claims in real evidence rather than asserting conclusions. This is the primary differentiator from SISTM (which tests argument structure) and code review (which tests technical correctness).
+**evidence_quality (2.0)** — Highest weight alongside causal_inference. The core question is whether the model can ground claims in real evidence rather than asserting conclusions. This is the primary differentiator from proprietary argumentation method (which tests argument structure) and code review (which tests technical correctness).
 
 **causal_inference (2.0)** — Equal weight to evidence quality. Many empirical questions involve causation claims built on correlational data. A model that says "X is associated with Y therefore X causes Y" should score low here. A model that identifies confounders and discusses study design should score high.
 
-**uncertainty_handling (1.5)** — This is what makes research synthesis different from SISTM. In SISTM, hedging is penalized. In research synthesis, appropriate hedging is rewarded — but false equivalence ("both sides have a point") is penalized. The distinction: acknowledging genuine uncertainty is strength; refusing to weigh evidence is weakness.
+**uncertainty_handling (1.5)** — This is what makes research synthesis different from proprietary argumentation method. In proprietary argumentation method, hedging is penalized. In research synthesis, appropriate hedging is rewarded — but false equivalence ("both sides have a point") is penalized. The distinction: acknowledging genuine uncertainty is strength; refusing to weigh evidence is weakness.
 
 **counterargument_strength (1.5)** — Tests whether the model engages with the best opposing evidence or just the weakest. A model that addresses a meta-analysis showing the opposite effect should score higher than one that dismisses opposition with "some critics argue."
 
@@ -123,11 +123,11 @@ Refine prompt (mode-specific):
 You are revising your evidence synthesis after seeing critiques. Update your synthesis to address the strongest counter-evidence raised. If the critique cites evidence that changes your conclusion, update accordingly. If it does not, explain why the cited evidence does not change the weight of your assessment. Do not mention that you are revising. Present your updated synthesis directly.
 ```
 
-Note: Unlike SISTM (one sentence) and code review (findings list), research synthesis allows multi-paragraph responses in both rebuttal and refine stages. This is necessary because evidence evaluation requires citing sources and reasoning about study design.
+Note: Unlike proprietary argumentation method (one sentence) and code review (findings list), research synthesis allows multi-paragraph responses in both rebuttal and refine stages. This is necessary because evidence evaluation requires citing sources and reasoning about study design.
 
 ## Key differences from other modes
 
-| Dimension | SISTM | Code Review | Research Synthesis |
+| Dimension | proprietary argumentation method | Code Review | Research Synthesis |
 |-----------|-------|-------------|-------------------|
 | Uncertainty | Penalized (hedge flaw) | N/A | Rewarded (appropriate_uncertainty) |
 | Evidence | Mechanism-based | Line-specific | Source-specific |

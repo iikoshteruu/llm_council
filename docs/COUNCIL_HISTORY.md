@@ -102,7 +102,7 @@ Use:
 - Area: core pipeline
 - Change: established the working multi-model pipeline with generation, rebuttal, refine, adjudication, weighted scoring, strongest/weakest, grouped/summary/NDJSON exports
 - Motivation: move from isolated model outputs to a pressure-tested council with analyzable behavior
-- Effect: baseline `SISTM` council became operational
+- Effect: baseline `proprietary argumentation method` council became operational
 - Comparability: pre-stable runs should be treated cautiously; later fixes changed interpretation
 
 ## 2026-03-31 — Reverse-Rebuttal Diagnostic Added
@@ -129,12 +129,12 @@ Use:
 - Effect: cross-run trends and aggregate summaries became easier to inspect
 - Comparability: no scoring change; reporting-only addition
 
-## 2026-03-31 — New SISTM Domain Expansion
+## 2026-03-31 — New proprietary argumentation method Domain Expansion
 
 - Area: prompts
 - Change: added new prompt families including international law, trade/sanctions, criminal justice, AI governance, maritime/space, labor/automation, public health, education, housing, surveillance, monetary policy, food/agriculture
 - Motivation: expand beyond the original tech/energy/law/defense coverage
-- Effect: broader benchmark space for `SISTM`
+- Effect: broader benchmark space for `proprietary argumentation method`
 - Comparability: added new domains only; existing domain behavior unchanged
 
 ## 2026-03-31 — Consensus Extraction Fallback Fix
@@ -237,15 +237,15 @@ Use:
 
 - Area: mode system
 - Change: introduced `code_review` as a distinct mode with its own prompts, axes, verdict types, and findings-first adjudication
-- Motivation: the pipeline was broader than `SISTM`, but needed a rubric-specific second mode rather than a generic prompt skin
+- Motivation: the pipeline was broader than `proprietary argumentation method`, but needed a rubric-specific second mode rather than a generic prompt skin
 - Effect: the council became multi-mode
-- Comparability: `code_review` and `SISTM` are not directly comparable and must be aggregated separately
+- Comparability: `code_review` and `proprietary argumentation method` are not directly comparable and must be aggregated separately
 
 ## 2026-03-31 — Mode-Aware Aggregation And Reporting
 
 - Area: aggregation/reporting
 - Change: aggregator partitions runs by mode and emits separate outputs; reports display mode identity explicitly
-- Motivation: `SISTM` and `code_review` do not share axes or verdict semantics
+- Motivation: `proprietary argumentation method` and `code_review` do not share axes or verdict semantics
 - Effect: unlike modes no longer contaminate each other’s summaries
 - Comparability: mode separation is now enforced
 
@@ -293,7 +293,7 @@ Use:
 
 - Area: web UX
 - Change: prompt dropdown is now filtered by council mode, and code-review presets are selectable without manual paste
-- Motivation: `SISTM` and `code_review` should not expose each other’s preset lists
+- Motivation: `proprietary argumentation method` and `code_review` should not expose each other’s preset lists
 - Effect: the mode boundary is now visible and usable in the UI
 - Comparability: no scoring change
 
@@ -301,7 +301,7 @@ Use:
 
 - Area: web/dashboard
 - Change: dashboard requests now include the active council mode, and backend dashboard resolution maps mode aliases to the correct mode-specific aggregate/report outputs
-- Motivation: the dashboard initially read a single aggregate view, which broke `code_review` visibility when `SISTM` and code-review outputs coexisted
+- Motivation: the dashboard initially read a single aggregate view, which broke `code_review` visibility when `proprietary argumentation method` and code-review outputs coexisted
 - Effect: dashboard now serves the correct aggregate for the active mode instead of relying on whichever aggregate file happened to be present
 - Comparability: no scoring change; dashboard interpretation is now mode-correct
 
@@ -318,7 +318,7 @@ Use:
 - Area: mode plumbing
 - Change: added research-synthesis preset routing in `webapp.py`, added `question` input normalization, exposed research-synthesis mode and presets in the web UI, and ran the first six-prompt benchmark batch
 - Motivation: the mode contract was defined in `council_modes.py` but was not yet usable through the webapp/runtime contract
-- Effect: research-synthesis now behaves as a first-class mode alongside `SISTM` and `code_review`
+- Effect: research-synthesis now behaves as a first-class mode alongside `proprietary argumentation method` and `code_review`
 - Comparability: establishes the first research-synthesis benchmark corpus; new mode, so no cross-mode comparison should be inferred
 
 ## 2026-04-02 — Legal Analysis Mode Wired Through Web And Benchmark Paths
@@ -342,7 +342,7 @@ Use:
 - Area: documentation/methodology
 - Change: created `docs/MODEL_PROFILES.md` with per-model empirical findings across both modes
 - Motivation: behavioral findings were scattered across commit messages, analysis outputs, and conversation context. A standalone document makes them citable and reviewable.
-- Effect: GPT-4.1 behavioral reversal (recency-driven in SISTM, evidence-driven in code review) formally documented as the key finding validating mode-specific rubrics. Cross-mode behavioral summary table published.
+- Effect: GPT-4.1 behavioral reversal (recency-driven in proprietary argumentation method, evidence-driven in code review) formally documented as the key finding validating mode-specific rubrics. Cross-mode behavioral summary table published.
 - Comparability: documentation-only change
 
 ## 2026-04-01 — Dashboard Frontend View Added
@@ -365,7 +365,7 @@ Use:
 
 - Area: documentation
 - Change: added four-stage architecture overview (discovery, deliberation, adjudication, verdict) and screenshots of verdict output and dashboard to README
-- Motivation: the README described features but not the pipeline architecture. Screenshots show real output without revealing system prompts or SISTM formulation details.
+- Motivation: the README described features but not the pipeline architecture. Screenshots show real output without revealing system prompts or proprietary argumentation method formulation details.
 - Effect: anyone landing on the repo sees the pipeline architecture and real output immediately
 - Comparability: documentation-only change
 
@@ -373,9 +373,9 @@ Use:
 
 - Area: mode system / methodology
 - Change: added `research_synthesis` as third mode with uncertainty-aware evidence evaluation rubric. 6-question benchmark corpus (intermittent fasting, remote work, minimum wage, nuclear safety, screen time, COVID masking). Mode-specific rebuttal/refine prompts (multi-paragraph, citation-required).
-- Motivation: prove the pipeline can evaluate evidence quality and uncertainty handling, not just argument structure (SISTM) or technical correctness (code review)
-- Effect: **three modes, three different model rankings.** GPT-4.1 is strongest in research synthesis (5/6, avg 40.2) while Claude is weakest (0/6, avg 36.2). Complete reversal from SISTM and code review. This is the definitive validation that mode-specific rubrics produce materially different model hierarchies.
-- Comparability: research_synthesis is a separate mode; not comparable to SISTM or code_review metrics
+- Motivation: prove the pipeline can evaluate evidence quality and uncertainty handling, not just argument structure (proprietary argumentation method) or technical correctness (code review)
+- Effect: **three modes, three different model rankings.** GPT-4.1 is strongest in research synthesis (5/6, avg 40.2) while Claude is weakest (0/6, avg 36.2). Complete reversal from proprietary argumentation method and code review. This is the definitive validation that mode-specific rubrics produce materially different model hierarchies.
+- Comparability: research_synthesis is a separate mode; not comparable to proprietary argumentation method or code_review metrics
 
 ## 2026-04-02 — Research Synthesis Adjudicator Comparison
 
@@ -383,13 +383,13 @@ Use:
 - Change: controlled A/B comparison of Mistral vs Gemini adjudicator on same 6 research synthesis prompts (runs 74-79 vs 68-73)
 - Motivation: determine whether Gemini (the better code review adjudicator) is also better for research synthesis
 - Effect: **opposite conclusion from code review.** Mistral is the better adjudicator for research synthesis. Gemini over-scores evidence quality (all-5s ceiling compression on GPT, destroying discriminative power). Mistral distributes scores realistically (3.50-5.00 range). Ranking is stable with both adjudicators (GPT strongest in both), but Mistral provides better calibration. `research_synthesis` locked to Mistral adjudication as default.
-- Comparability: adjudicator choice is now a confirmed mode-dependent variable. Cross-mode adjudicator summary: SISTM→Mistral, code_review→Gemini, research_synthesis→Mistral. There is no universally best adjudicator.
+- Comparability: adjudicator choice is now a confirmed mode-dependent variable. Cross-mode adjudicator summary: proprietary argumentation method→Mistral, code_review→Gemini, research_synthesis→Mistral. There is no universally best adjudicator.
 
 ## 2026-04-02 — Legal Analysis Mode Benchmarked and Adjudicator Compared
 
 - Area: mode system / methodology
 - Change: benchmarked legal_analysis mode with 6 prompts (Section 230, GDPR, FAA preemption, dormant Commerce Clause, geofence warrants, AI copyright). Ran adjudicator A/B (runs 80-85 Mistral, runs 86-91 Gemini).
-- Motivation: fourth mode — tests statutory interpretation and precedent application, different from mechanism reasoning (SISTM), bug finding (code review), and evidence synthesis (research synthesis)
+- Motivation: fourth mode — tests statutory interpretation and precedent application, different from mechanism reasoning (proprietary argumentation method), bug finding (code review), and evidence synthesis (research synthesis)
 - Effect: GPT-4.1 strongest again (5/6, avg 37.5) — same pattern as research synthesis. Claude weakest (0/6, avg 32.2). GPT's advantage in citation-heavy rubrics now confirmed across two modes. Adjudicator comparison is genuinely close: Mistral rubber-stamps all as settled/high, Gemini flags FAA preemption and dormant Commerce as contested (arguably more accurate). Mistral defaulted as provisional choice.
 - Comparability: legal_analysis is a separate mode. Adjudicator default is provisional — may change after corpus expansion.
 
@@ -409,6 +409,14 @@ Use:
 - Effect: the working tree stays focused on source changes, and the threat-assessment benchmark corpus now contains one authoritative baseline run set instead of two overlapping copies.
 - Comparability: no scoring logic changed. Corpus interpretation improved because duplicate benchmark artifacts were removed from the canonical set.
 
+## 2026-04-03 — Public Documentation Redacted To Proprietary Terminology
+
+- Area: documentation/privacy
+- Change: removed public documentation references to the named proprietary argumentation method and replaced them with the generic phrase "proprietary argumentation method."
+- Motivation: the argumentation method is private intellectual property and should not be named or inferable from repo documentation before publication.
+- Effect: README, runbook, system reference, history, model profiles, mode specs, and Claude ownership notes now refer to the proprietary mode generically instead of by name.
+- Comparability: documentation-only change. No pipeline logic, mode behavior, or benchmark interpretation changed.
+
 ## 2026-04-02 — Threat Assessment Benchmarked and Adjudicator Decided
 
 - Area: mode system / methodology
@@ -421,7 +429,7 @@ Use:
 
 ## Current Benchmark Conclusions
 
-### SISTM
+### proprietary argumentation method
 
 - reverse-rebuttal diagnostics established real order sensitivity in some models
 - Claude showed stronger order independence than GPT/Gemini in the original A/B findings
@@ -448,13 +456,13 @@ Use:
 
 There is no globally best model in this system. There are mode-specific best models, and the rubric determines which strengths matter:
 
-| Model | SISTM | Code Review | Research Synthesis | Legal Analysis | Threat Assessment |
+| Model | proprietary argumentation method | Code Review | Research Synthesis | Legal Analysis | Threat Assessment |
 |-------|-------|-------------|-------------------|----------------|-------------------|
 | Claude Opus | Strongest | Strongest | Weakest | Weakest | Middle (strongest rebutter) |
 | GPT-4.1 | Weak | Middle | Strongest | Strongest | Strongest |
 | Gemini Flash | Middle | Adjudicator | Middle | Middle | Adjudicator |
 
-Two clusters: Claude excels under adversarial pressure (SISTM, code review). GPT excels at citation and structured analysis (research synthesis, legal, threat). Claude is the most persuasive rebutter across all five modes, even when it scores lowest.
+Two clusters: Claude excels under adversarial pressure (proprietary argumentation method, code review). GPT excels at citation and structured analysis (research synthesis, legal, threat). Claude is the most persuasive rebutter across all five modes, even when it scores lowest.
 
 There is no universally best adjudicator. Design heuristic:
 
@@ -463,7 +471,7 @@ There is no universally best adjudicator. Design heuristic:
 
 | Mode | Default Adjudicator | Reason |
 |------|---------------------|--------|
-| SISTM | Mistral | Reliable flaw labeling, no sycophancy |
+| proprietary argumentation method | Mistral | Reliable flaw labeling, no sycophancy |
 | Code Review | Gemini | Mistral over-confirms, inflates severity |
 | Research Synthesis | Mistral | Gemini over-scores, ceiling compression |
 | Legal Analysis | Mistral (provisional) | Genuinely close |

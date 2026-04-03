@@ -4,7 +4,7 @@
 
 The LLM Council is a multi-model, multi-stage evaluation and deliberation pipeline with mode-specific rubrics. Multiple LLMs answer each question independently, optionally deliberate via adversarial rebuttal and refinement rounds, and are then scored by a configurable adjudicator across mode-specific quality axes with deterministic weighted scoring, conviction bonuses, and verdict classification.
 
-The pipeline is mode-agnostic. Each mode defines its own axes, scoring weights, adjudication prompts, verdict classifier, and input format. Current modes: `sistm_stress` (adversarial reasoning stress tests), `code_review` (multi-model code review with findings-first verdicts).
+The pipeline is mode-agnostic. Each mode defines its own axes, scoring weights, adjudication prompts, verdict classifier, and input format. Current modes include the proprietary argumentation method, `code_review`, `research_synthesis`, `legal_analysis`, and `threat_assessment`.
 
 ---
 
@@ -30,7 +30,7 @@ The adjudicator is automatically excluded from the council roster. A model never
 
 | Mode | Adjudicator | Council | Verdict Types |
 |------|-------------|---------|---------------|
-| `sistm_stress` | Mistral (default) | GPT-4.1, Claude, Gemini | unanimous / majority / contested / unstable |
+| Proprietary argumentation method | Mistral (default) | GPT-4.1, Claude, Gemini | unanimous / majority / contested / unstable |
 | `code_review` | Mistral (default) | GPT-4.1, Claude, Gemini | confirmed / disputed / clean / inconclusive |
 | `code_review_gemini_adj` | Gemini | GPT-4.1, Claude, Mistral | confirmed / disputed / clean / inconclusive |
 
@@ -42,10 +42,10 @@ The adjudicator is automatically excluded from the council roster. A model never
 
 **Stage 1 — Input Selection**
 Input format depends on the mode:
-- **SISTM**: JSONL prompt files with per-domain questions (24 domains, 4 questions each), or custom JSONL via the web UI.
+- **proprietary argumentation method**: JSONL prompt files with per-domain questions (24 domains, 4 questions each), or custom JSONL via the web UI.
 - **Code review**: Code files or pasted code snippets via the web UI, normalized to internal turn structure.
 
-SISTM domain sets: finance, ML systems, energy_nuclear, energy_grid, carbon, privacy, bio/med, security, cloud, softeng, NATO v3, Constitutional, international_law, trade_sanctions, criminal_justice, ai_governance, maritime_space, labor_automation, public_health, education, housing, surveillance, monetary_policy, food_agriculture.
+proprietary argumentation method domain sets: finance, ML systems, energy_nuclear, energy_grid, carbon, privacy, bio/med, security, cloud, softeng, NATO v3, Constitutional, international_law, trade_sanctions, criminal_justice, ai_governance, maritime_space, labor_automation, public_health, education, housing, surveillance, monetary_policy, food_agriculture.
 
 Code review prompts: `prompts/code_review/` contains curated code files with realistic bugs at varying severity levels.
 
@@ -244,7 +244,7 @@ All models find bugs at comparable rates (4.00-4.88). The separation is in evide
 
 **Claude**: Low flip rate (25%), all cited. Most stable when it holds position. Most persuasive in deliberation — its rebuttals caused 5 flips across other models (3 GPT + 2 Mistral).
 
-**GPT-4.1**: Moderate flip rate (37.5%), all cited. Evidence-driven updates — behavioral reversal from SISTM where flips are recency-driven.
+**GPT-4.1**: Moderate flip rate (37.5%), all cited. Evidence-driven updates — behavioral reversal from proprietary argumentation method where flips are recency-driven.
 
 **Mistral**: 87.5% flip rate, 50% uncited. Negative conviction (-0.25). Recency-driven instability — the weakest council member for this mode.
 
@@ -283,7 +283,7 @@ All models find bugs at comparable rates (4.00-4.88). The separation is in evide
 
 5. **Claude is the strongest code reviewer.** Best evidence quality, fix quality, and regression awareness. Most persuasive in deliberation — its rebuttals are the primary cause of position changes in other models.
 
-6. **GPT-4.1 is the most consistent reviewer.** Lowest score variance (1.9), no uncited flips. Its behavioral reversal from SISTM (recency-driven → evidence-driven) is the strongest evidence that mode rubric separation produces real behavioral differences.
+6. **GPT-4.1 is the most consistent reviewer.** Lowest score variance (1.9), no uncited flips. Its behavioral reversal from proprietary argumentation method (recency-driven → evidence-driven) is the strongest evidence that mode rubric separation produces real behavioral differences.
 
 7. **Regression awareness is a genuine cross-model capability gap.** All models average below 3.0. This axis separates from ceiling scores and is the hardest for all reviewers.
 
@@ -497,28 +497,28 @@ Council: GPT-4.1, Claude Opus, Mistral. Adjudicator: Gemini Flash.
 - Most stable code reviewer: lowest flip rate (25%), highest conviction (1.50).
 - Strong on bug identification (4.75) and scope discipline (5.0).
 - Weak on evidence quality (2.50) — finds bugs but doesn't cite lines or execution paths as well.
-- Behavioral reversal from SISTM: stable and evidence-driven in code review, recency-driven in SISTM. This is the strongest evidence that mode rubric separation is doing real work.
+- Behavioral reversal from proprietary argumentation method: stable and evidence-driven in code review, recency-driven in proprietary argumentation method. This is the strongest evidence that mode rubric separation is doing real work.
 
 **Mistral (as council member)**
 - Weakest reviewer: 0/4 strongest, 2/4 weakest, avg 32.6.
 - Highest flip rate (75%), 25% uncited — shows recency-driven flip behavior.
 - Strong bug identification (5.0) but weakest fix quality (2.75) — finds bugs, proposes bad fixes.
-- Lowest conviction average (0.25). Better suited as adjudicator (SISTM) than council member (code review).
+- Lowest conviction average (0.25). Better suited as adjudicator (proprietary argumentation method) than council member (code review).
 
 **Cross-mode behavioral summary:**
 
-| Model | SISTM Role | SISTM Behavior | Code Review Role | Code Review Behavior |
+| Model | proprietary argumentation method Role | proprietary argumentation method Behavior | Code Review Role | Code Review Behavior |
 |-------|-----------|----------------|-----------------|---------------------|
 | Claude Opus | Council | Strongest, holds positions, evidence-driven | Council | Strongest, most persuasive reviewer |
 | GPT-4.1 | Council | Recency-driven flips, format-compliant | Council | Stable, evidence-driven — behavioral reversal |
 | Gemini Flash | Council | Middle, hedges initially, improves with deliberation | Adjudicator | Conservative, skeptical, good severity calibration |
-| Mistral | Adjudicator | Reliable for SISTM flaw labeling | Council | Weak reviewer, recency-driven flips, bad fixes |
+| Mistral | Adjudicator | Reliable for proprietary argumentation method flaw labeling | Council | Weak reviewer, recency-driven flips, bad fixes |
 
 ---
 
-## Prompt Design (SISTM)
+## Prompt Design (Proprietary Argumentation Method)
 
-Prompts follow the Socratic Inversion Stress Test Method:
+Prompts follow the proprietary argumentation method:
 - Embed structural tensions using operative words from the domain.
 - Force a binary choice with mechanism ("Pick one, give the mechanism, no hedging").
 - Forbid hedging, extra sentences, and abstraction.
@@ -529,8 +529,8 @@ Prompts follow the Socratic Inversion Stress Test Method:
 
 ## Web UI
 
-- Mode selector: SISTM Stress Test or Code Review.
-- Domain dropdown: 24 SISTM domain presets plus custom JSONL. Code review accepts pasted code.
+- Mode selector: Proprietary Argumentation Method or Code Review.
+- Domain dropdown: 24 proprietary argumentation method domain presets plus custom JSONL. Code review accepts pasted code.
 - Checkboxes: Enable/disable rebuttal and refine rounds.
 - Verdict display: Hero cards with type/confidence badges, findings counts for code review.
 - Downloads: NDJSON (flat), grouped.json (structured), summary.json (lightweight). Server-side artifacts when available.
@@ -549,7 +549,7 @@ The system was developed iteratively across 63+ runs. Key milestones:
 | 30 | Generalization validated across law, economics, nuclear engineering |
 | 33–34 | Grouped export schema finalized, code_hash added |
 | 34–43 | Consensus parser iterations on softeng domain (ultimately replaced) |
-| 44 | Consensus delegated to Mistral adjudicator. SISTM pipeline complete |
+| 44 | Consensus delegated to Mistral adjudicator. proprietary argumentation method pipeline complete |
 | 44–46 | Flip provenance, discriminative power, consensus stability metrics added |
 | 46 | Verdict layer added — deterministic classification with confidence, refuses to force certainty |
 | 47–50 | Mode abstraction layer. Code review mode with findings-first verdict |
@@ -569,7 +569,7 @@ Full spec: [docs/MODE_SPEC_RESEARCH_SYNTHESIS.md](MODE_SPEC_RESEARCH_SYNTHESIS.m
 
 ### Key difference from other modes
 
-In SISTM, hedging is penalized. In research synthesis, appropriate uncertainty is rewarded — but false equivalence is penalized. Acknowledging genuine limits in the evidence is strength; refusing to weigh evidence is weakness.
+In proprietary argumentation method, hedging is penalized. In research synthesis, appropriate uncertainty is rewarded — but false equivalence is penalized. Acknowledging genuine limits in the evidence is strength; refusing to weigh evidence is weakness.
 
 ### Scoring Axes
 
@@ -615,7 +615,7 @@ Questions: intermittent fasting, remote work, minimum wage, nuclear safety, scre
 | Gemini Flash | 36.8 | 3.2 | 1 | 2 | -1 |
 | Claude Opus | 36.2 | 2.8 | 0 | 4 | -4 |
 
-GPT-4.1 is strongest in 5/6 questions — a complete reversal from SISTM and code review where Claude dominates.
+GPT-4.1 is strongest in 5/6 questions — a complete reversal from proprietary argumentation method and code review where Claude dominates.
 
 #### Axis Scores
 
@@ -642,7 +642,7 @@ GPT flipped on every question — all cited. In research synthesis, it treats ev
 
 #### Key Finding: Three Modes, Three Rankings
 
-| Model | SISTM | Code Review | Research Synthesis |
+| Model | proprietary argumentation method | Code Review | Research Synthesis |
 |-------|-------|-------------|-------------------|
 | Claude Opus | Strongest (+52 net) | Strongest (+6 net) | Weakest (-4 net) |
 | GPT-4.1 | Weak (recency flips) | Middle (stable) | Strongest (+5 net) |
@@ -650,7 +650,7 @@ GPT flipped on every question — all cited. In research synthesis, it treats ev
 
 **The "best model" depends entirely on the task rubric.** There is no universally strongest model. Each mode produces a different hierarchy because it measures different capabilities. This is the definitive validation of the multi-mode architecture.
 
-GPT's strength in research synthesis is citation specificity and evidence sourcing. Claude's strength in SISTM is mechanism depth and rhetorical resistance. The same model that folds under adversarial pressure (GPT in SISTM) excels at evidence synthesis — and the same model that dominates adversarial debate (Claude in SISTM) is less rigorous about causation vs correlation.
+GPT's strength in research synthesis is citation specificity and evidence sourcing. Claude's strength in proprietary argumentation method is mechanism depth and rhetorical resistance. The same model that folds under adversarial pressure (GPT in proprietary argumentation method) excels at evidence synthesis — and the same model that dominates adversarial debate (Claude in proprietary argumentation method) is less rigorous about causation vs correlation.
 
 #### Research Synthesis Adjudicator Comparison
 
@@ -680,7 +680,7 @@ The ranking is stable with either adjudicator (GPT strongest in both), but Mistr
 
 | Mode | Better Adjudicator | Reason |
 |------|--------------------|--------|
-| SISTM | Mistral | Reliable flaw labeling, no sycophancy across 50+ runs |
+| proprietary argumentation method | Mistral | Reliable flaw labeling, no sycophancy across 50+ runs |
 | Code Review | Gemini | Mistral over-confirms findings, inflates severity |
 | Research Synthesis | Mistral | Gemini over-scores evidence quality, ceiling compression |
 | Legal Analysis | Mistral (provisional) | Genuinely close — see below |
@@ -689,7 +689,7 @@ The ranking is stable with either adjudicator (GPT strongest in both), but Mistr
 **There is no universally best adjudicator.** The correct adjudicator depends on the mode. A design heuristic has emerged from the benchmark data:
 
 - **Findings-first modes** (code review, threat assessment) → **Gemini** — these modes need skepticism. An adjudicator that rubber-stamps every finding produces inflated threat/bug counts.
-- **Position/evidence modes** (SISTM, research synthesis) → **Mistral** — these modes need calibrated scoring across a range. Gemini ceiling-compresses scores in these modes.
+- **Position/evidence modes** (proprietary argumentation method, research synthesis) → **Mistral** — these modes need calibrated scoring across a range. Gemini ceiling-compresses scores in these modes.
 - **Legal analysis** → **Mistral (provisional)** — genuinely close, revisit after corpus expansion.
 
 #### Legal Analysis Adjudicator Comparison (Provisional)
@@ -779,7 +779,7 @@ Claude's weakest axis is rule_application (3.17) — it identifies authority but
 
 #### Key Finding: Five Modes, Two Behavioral Clusters
 
-| Model | SISTM | Code Review | Research Synthesis | Legal Analysis | Threat Assessment |
+| Model | proprietary argumentation method | Code Review | Research Synthesis | Legal Analysis | Threat Assessment |
 |-------|-------|-------------|-------------------|----------------|-------------------|
 | Claude Opus | Strongest | Strongest | Weakest | Weakest | Middle (weakest on score, strongest in deliberation) |
 | GPT-4.1 | Weak | Middle | Strongest | Strongest | Strongest |
@@ -787,7 +787,7 @@ Claude's weakest axis is rule_application (3.17) — it identifies authority but
 
 Two behavioral clusters:
 
-- **Claude excels when the rubric rewards reasoning under pressure** — SISTM (adversarial debate) and code review (fix quality, evidence depth). Claude is also the most persuasive rebutter across all five modes, including modes where it scores lowest.
+- **Claude excels when the rubric rewards reasoning under pressure** — proprietary argumentation method (adversarial debate) and code review (fix quality, evidence depth). Claude is also the most persuasive rebutter across all five modes, including modes where it scores lowest.
 - **GPT excels when the rubric rewards citing sources and structured analysis** — research synthesis (citation specificity), legal analysis (authority identification), threat assessment (exploitability assessment, mitigation quality).
 
 **Strongest debater is not always strongest final synthesizer.** Claude caused more position changes in other models than any other council member across every mode tested — even in modes where it ranked last on final score.
@@ -888,7 +888,7 @@ The aggregator (`council_aggregator.py`) computes:
 - Strongest/weakest counts
 - Phase 1 flaw frequency
 - **Consensus stability**: For recurring questions, tracks whether consensus holds across runs (STABLE >= 80%, MIXED >= 50%, UNSTABLE < 50%)
-- **Discriminative power**: Per-question score spread across models (HIGH >= 3.0, MED >= 1.5, LOW < 1.5) — identifies which SISTM prompts actually separate model quality vs trivially unanimous
+- **Discriminative power**: Per-question score spread across models (HIGH >= 3.0, MED >= 1.5, LOW < 1.5) — identifies which proprietary argumentation method prompts actually separate model quality vs trivially unanimous
 
 ---
 
@@ -896,7 +896,7 @@ The aggregator (`council_aggregator.py`) computes:
 
 - Multi-round deliberation with convergence check (iterate rebuttal/refine until no flips)
 - Prompt-file metadata (Option B domain tagging inside JSONL for portability)
-- Wider domain sweep with statistical validation across all 24 SISTM domain sets
+- Wider domain sweep with statistical validation across all 24 proprietary argumentation method domain sets
 - Regression awareness improvement for code review mode (universally weakest axis)
 - Additional modes: research synthesis, general council, legal analysis
 - Model behavioral profiles document (standalone empirical findings)

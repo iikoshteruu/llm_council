@@ -62,7 +62,7 @@ The pipeline engine is mode-agnostic. Each mode defines its own axes, scoring we
 
 | Mode | Purpose | Axes | Verdict Types | Input |
 |------|---------|------|---------------|-------|
-| `sistm_stress` | Adversarial stress testing via SISTM | 6 (structural, empirical, asymmetry, rhetorical, frame, institutional) | unanimous / majority / contested / unstable | JSONL prompts |
+| Proprietary argumentation method | Adversarial stress testing via a proprietary argumentation method | 6 (structural, empirical, asymmetry, rhetorical, frame, institutional) | unanimous / majority / contested / unstable | JSONL prompts |
 | `code_review` | Multi-model code review with findings-first verdict | 6 (bug ID, severity, evidence, fix quality, regression, scope) | confirmed / disputed / clean / inconclusive | Code paste |
 | `code_review_gemini_adj` | Code review with Gemini as adjudicator (experiment) | Same as code_review | Same as code_review | Code paste |
 
@@ -86,7 +86,7 @@ The adjudicator and council roster are configurable per mode. This is not option
 
 | Mode | Default Adjudicator | Why |
 |------|---------------------|-----|
-| SISTM Stress Test | Mistral | Reliable flaw labeling, no sycophancy across 50+ runs |
+| Proprietary Argumentation Method | Mistral | Reliable flaw labeling, no sycophancy across 50+ runs |
 | Code Review | Gemini | Mistral over-confirms findings and inflates severity |
 | Research Synthesis | Mistral | Gemini over-scores evidence quality (ceiling compression destroys discriminative power) |
 | Legal Analysis | Mistral (provisional) | Genuinely close — revisit after corpus expansion |
@@ -95,7 +95,7 @@ The adjudicator and council roster are configurable per mode. This is not option
 There is no universally best adjudicator. A design heuristic has emerged:
 
 - **Findings-first modes** (code review, threat assessment) → **Gemini** — needs skepticism to filter findings
-- **Position/evidence modes** (SISTM, research synthesis) → **Mistral** — needs calibrated scoring range
+- **Position/evidence modes** (proprietary argumentation method, research synthesis) → **Mistral** — needs calibrated scoring range
 
 Each mode's adjudicator was selected through controlled A/B comparison on the same benchmark prompts with only the adjudicator swapped.
 
@@ -117,7 +117,7 @@ Most multi-model systems either vote, merge, or have a chairman summarize. This 
 | Adversarial rebuttal + refine | Yes -- models rebut, revise, position changes tracked | No -- peer review only, no revision | No -- scoring only | No |
 | Flip detection + provenance | Yes -- cited vs uncited flips, tracks which rebuttal caused the change | No | No | No |
 | Independent adjudicator | Yes -- configurable per mode, never evaluates own output | No -- chairman participates | No -- models score each other | Yes -- LLM-as-judge |
-| Flaw taxonomy | 11 labels (SISTM) / 5 labels (code review) | No | No | No |
+| Flaw taxonomy | 11 labels (proprietary argumentation method) / 5 labels (code review) | No | No | No |
 | Multi-mode rubrics | Yes -- each mode has its own axes, weights, verdict logic | No | No | No |
 | Deterministic weighted scoring | Mode-specific axes with fixed weights + conviction bonus | No | Rubric-based but not deterministic | Elo-style ranking |
 | Verdict with confidence classification | Withholds when evidence is insufficient | Chairman always synthesizes | Voting always produces winner | Ranking always produces order |
@@ -159,16 +159,16 @@ pip install -r requirements.txt
 ```bash
 python3 webapp.py
 # Open http://localhost:5000
-# Select mode (SISTM Stress Test / Code Review) and domain
+# Select mode (Proprietary Argumentation Method / Code Review) and domain
 ```
 
 ### Run via orchestrator
 
 ```bash
-# SISTM stress test
+# Proprietary argumentation method
 python3 council_orchestrator.py \
   --file prompts/prompts_finance.jsonl \
-  --domain finance --mode sistm_stress \
+  --domain finance \
   --rebuttal --refine \
   --artifacts-dir results/current
 
@@ -195,7 +195,7 @@ docker compose up --build
 
 API keys are passed from the host environment via `.env` file. Results persist to the mounted `/data` volume.
 
-## SISTM Stress Test Mode
+## Proprietary Argumentation Method Mode
 
 ### Flaw taxonomy
 
@@ -305,7 +305,7 @@ Applied identically across all modes:
 | Flip provenance | Which model's rebuttals most frequently cause flips |
 | Reverse-rebuttal A/B | Detects recency bias vs genuine conviction |
 
-Aggregation is mode-aware -- SISTM and code review runs never mix in the same metric tables.
+Aggregation is mode-aware -- proprietary argumentation method and code review runs never mix in the same metric tables.
 
 ## Analysis tools
 
@@ -339,7 +339,7 @@ All artifacts are written server-side when `--artifacts-dir` is set:
 | `RUN_REBUTTAL` | Optional | Enable rebuttal round (0/1) |
 | `RUN_REFINE` | Optional | Enable refine/flip round (0/1) |
 | `COUNCIL_MODELS` | Optional | Default council roster (default: openai,anthropic,google) |
-| `COUNCIL_MODE` | Optional | Default mode (default: sistm_stress) |
+| `COUNCIL_MODE` | Optional | Default mode (proprietary argumentation method) |
 | `COUNCIL_WEB_API_KEY` | Optional | API key for /api/run endpoint |
 | `COUNCIL_ARTIFACTS_DIR` | Optional | Directory for server-side artifact output |
 
@@ -375,7 +375,7 @@ Planned modes in priority order. Each requires its own rubric — modes are not 
 
 Verdict types: `supported` / `contested` / `insufficient_evidence`
 
-Why next: strong rubric boundary, clear user value, tests a new evaluation dimension (uncertainty-aware truth-seeking). The pipeline has only evaluated argument quality (SISTM) and technical correctness (code review) — research synthesis adds evidence evaluation.
+Why next: strong rubric boundary, clear user value, tests a new evaluation dimension (uncertainty-aware truth-seeking). The pipeline has only evaluated argument quality (proprietary argumentation method) and technical correctness (code review) — research synthesis adds evidence evaluation.
 
 ### General council (after research synthesis)
 

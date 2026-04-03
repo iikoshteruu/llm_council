@@ -50,7 +50,7 @@ This runs the council, writes all artifacts, regenerates the aggregate, and rege
 Current runtime layout:
 
 - artifacts are written into mode-specific directories under the active artifacts root:
-  - `current/sistm_stress/`
+  - `current/<proprietary_mode>/`
   - `current/code_review/`
   - `current/research_synthesis/`
   - `current/legal_analysis/`
@@ -103,7 +103,7 @@ Shows the output of the most recent council run. This is the per-question view:
   - Rebuttal text with target model
   - Axis score bars with per-axis colors
   - Phase 1 annotation detail
-- **Consensus bar** (SISTM mode) or **findings list** (code review mode)
+- **Consensus bar** (proprietary argumentation mode) or **findings list** (code review mode)
 
 The Results tab clears when a new run starts. Export buttons (NDJSON, Grouped, Summary) download artifacts from the server when available, falling back to client-side construction.
 
@@ -119,7 +119,7 @@ Shows aggregate data across all runs in the current benchmark corpus. Updated au
 - **Discriminative power** — which questions produce the most model separation (HIGH/MED/LOW with score spread)
 - **Consensus stability** — which questions produce consistent verdicts across runs (STABLE/MIXED/UNSTABLE)
 
-The dashboard is mode-aware — it shows data for the currently selected council mode (SISTM or Code Review). Switching modes shows different aggregate data.
+The dashboard is mode-aware — it shows data for the currently selected council mode. Switching modes shows different aggregate data.
 
 The dashboard requires at least one completed run to populate. If no aggregate data exists, it displays a message to run the council first.
 
@@ -202,7 +202,7 @@ If a question doesn't match any keywords, it appears under "unknown." This fallb
 
 ## Adding a New Domain
 
-1. Create a JSONL file with 4 questions following SISTM format:
+1. Create a JSONL file with 4 questions following proprietary argumentation method format:
    - Open with "In one sentence:" — establishes constraint
    - Present a three-layer inversion: surface claim, hidden negation, mechanism trap (the remedy contains the disease)
    - Embed 2-3 operative words that must appear in the answer
@@ -265,17 +265,17 @@ Compare: disputed count, severity distribution, strongest/weakest, verdict stabi
 
 The pipeline engine (council_basic.py) is mode-agnostic. It reads all mode-specific behavior from a config dict in `council_modes.py`. Every mode must define its own:
 
-- **Phase 1 prompt** — tells the adjudicator how to label each reply or finding. SISTM uses flaw labels (hedge, evasion, etc). Code review uses finding labels (correct_finding, false_positive, etc). A legal analysis mode would need its own label set. You cannot reuse one mode's phase 1 prompt for another — the labels, definitions, and evaluation criteria are fundamentally different.
+- **Phase 1 prompt** — tells the adjudicator how to label each reply or finding. proprietary argumentation method uses flaw labels (hedge, evasion, etc). Code review uses finding labels (correct_finding, false_positive, etc). A legal analysis mode would need its own label set. You cannot reuse one mode's phase 1 prompt for another — the labels, definitions, and evaluation criteria are fundamentally different.
 
-- **Phase 2 prompt** — tells the adjudicator how to merge or rank across replies. SISTM extracts consensus and picks strongest/weakest. Code review merges findings, deduplicates, and flags disputed vs confirmed. Each mode needs its own phase 2 prompt because the unit of evaluation differs (positions vs findings vs arguments).
+- **Phase 2 prompt** — tells the adjudicator how to merge or rank across replies. proprietary argumentation method extracts consensus and picks strongest/weakest. Code review merges findings, deduplicates, and flags disputed vs confirmed. Each mode needs its own phase 2 prompt because the unit of evaluation differs (positions vs findings vs arguments).
 
 - **Axis scoring prompt** — a template where `AXIS` and `AXIS_DESC` are replaced per axis. The template itself can often be reused across modes with minor adjustments, but the axis names and descriptions are mode-specific. The prompt tells the adjudicator what a score of 1 vs 5 means for that specific axis.
 
-- **Verdict prompt** — tells the adjudicator how to synthesize the final answer. SISTM produces a mechanism-based position statement. Code review produces a findings report with bug counts. Each mode's verdict has a different shape and purpose.
+- **Verdict prompt** — tells the adjudicator how to synthesize the final answer. proprietary argumentation method produces a mechanism-based position statement. Code review produces a findings report with bug counts. Each mode's verdict has a different shape and purpose.
 
-- **Verdict classifier** — a Python function (not a prompt) that deterministically classifies the verdict type and confidence. This is code, not an LLM call. Each mode defines its own types (SISTM: unanimous/majority/contested/unstable; code review: confirmed/disputed/clean/inconclusive) and its own classification logic.
+- **Verdict classifier** — a Python function (not a prompt) that deterministically classifies the verdict type and confidence. This is code, not an LLM call. Each mode defines its own types (proprietary argumentation method: unanimous/majority/contested/unstable; code review: confirmed/disputed/clean/inconclusive) and its own classification logic.
 
-- **Axes and weights** — the quality dimensions and their relative importance. Completely mode-specific. SISTM weights empirical grounding highest; code review weights bug identification and evidence quality highest.
+- **Axes and weights** — the quality dimensions and their relative importance. Completely mode-specific. proprietary argumentation method weights empirical grounding highest; code review weights bug identification and evidence quality highest.
 
 - **Adjudicator and council roster** — optionally, which model adjudicates and which models participate. Defaults to the global config if not specified. Some modes benefit from a different adjudicator (code review uses Gemini because it's more skeptical than Mistral on finding confirmation).
 
@@ -311,7 +311,7 @@ The following are mode-agnostic and do not need to be redefined:
 - Do not reuse one mode's rubric for a different task. Code review, legal analysis, and stress testing are judged by different axes. If you need different axes, you need a new mode.
 - Do not reuse one mode's phase 1 or phase 2 prompts for a task with different evaluation units. Flaw labels are not finding labels. Position consensus is not finding deduplication.
 - The verdict classifier is deterministic code, not an LLM prompt. If your mode has different verdict types, you must write a new classifier function.
-- **Do not assume a prior mode's adjudicator choice transfers to a new mode.** Benchmark data shows that the correct adjudicator is mode-dependent: Mistral is better for SISTM and research synthesis, Gemini is better for code review. For every new mode, run a controlled A/B comparison (same prompts, same council, only adjudicator swapped) before locking the default. An adjudicator that is appropriately skeptical in one mode may over-score or under-score in another.
+- **Do not assume a prior mode's adjudicator choice transfers to a new mode.** Benchmark data shows that the correct adjudicator is mode-dependent: Mistral is better for proprietary argumentation method and research synthesis, Gemini is better for code review. For every new mode, run a controlled A/B comparison (same prompts, same council, only adjudicator swapped) before locking the default. An adjudicator that is appropriately skeptical in one mode may over-score or under-score in another.
 
 ---
 
@@ -338,7 +338,7 @@ The following are mode-agnostic and do not need to be redefined:
 | run_id is null or reset | run_id.txt missing or permissions issue | Check results/run_id.txt exists and is writable |
 | Model reply missing from run | API timeout with no retry | Confirm retry logic is wired for that model's API call |
 | Code review verdict says "clean" but findings exist | Classifier not reading phase2.merged_findings | Verify classifier receives phase2 kwarg |
-| SISTM and code review runs mixed in aggregate | Mode not set on run artifacts | Ensure `--mode` flag is passed; aggregator partitions by mode |
+| Proprietary-method and code-review runs mixed in aggregate | Mode not set on run artifacts | Ensure `--mode` flag is passed; aggregator partitions by mode |
 | Adjudicator evaluating own output | Adjudicator model in council roster | Check mode config: adjudicator_model must not be in council_models |
 
 ---
@@ -348,7 +348,7 @@ The following are mode-agnostic and do not need to be redefined:
 - `results/legacy/` is the historical archive. Keep older mixed-era runs there.
 - `results/current/` is the active benchmark root. Each operational mode gets its own subdirectory under it.
 - Use per-mode corpus roots:
-  - `results/current/sistm_stress/`
+  - `results/current/<proprietary_mode>/`
   - `results/current/code_review*/`
   - `results/current/research_synthesis*/`
   - `results/current/legal_analysis*/`
@@ -361,7 +361,7 @@ The following are mode-agnostic and do not need to be redefined:
 Example:
 
 ```bash
-# SISTM aggregate
+# Default-mode aggregate
 python3 council_aggregator.py results/current --json
 
 # Code review aggregate (specify all case directories)
@@ -398,7 +398,7 @@ When expanding the corpus:
 
 ## Known Model Behaviors (Summary)
 
-### SISTM Mode
+### Proprietary Argumentation Method Mode
 
 **GPT-4.1:** Highest flip rate (~30%). Flips are recency-driven (confirmed by reverse-rebuttal A/B). Strongest on format compliance, weakest on mechanism depth. empirical_grounding averages 3.56 (lowest of three models).
 
@@ -410,7 +410,7 @@ When expanding the corpus:
 
 **Claude Opus:** Strongest reviewer (avg 38.1, strongest 6/8). Best evidence quality (3.75), fix quality (4.38). Most persuasive in deliberation — rebuttals caused 5 flips in other models. Low flip rate (25%), all cited.
 
-**GPT-4.1:** Most consistent reviewer (StdDev 1.9, lowest). Moderate performance (avg 34.0). No uncited flips. Behavioral reversal from SISTM — stable and evidence-driven in code review, recency-driven in stress testing.
+**GPT-4.1:** Most consistent reviewer (StdDev 1.9, lowest). Moderate performance (avg 34.0). No uncited flips. Behavioral reversal from proprietary argumentation method — stable and evidence-driven in code review, recency-driven in stress testing.
 
 **Mistral (council member):** Not currently competitive (avg 27.3, weakest 6/8). 87.5% flip rate, 50% uncited. Negative conviction (-0.25). Weakest fix quality (2.50). This finding is specific to the code review benchmark corpus.
 
@@ -418,9 +418,9 @@ When expanding the corpus:
 
 ### Cross-Mode Behavioral Summary
 
-| Model | SISTM Behavior | Code Review Behavior |
+| Model | proprietary argumentation method Behavior | Code Review Behavior |
 |-------|----------------|---------------------|
 | Claude Opus | Strongest, holds positions, evidence-driven | Strongest reviewer, most persuasive |
 | GPT-4.1 | Recency-driven flips, format-compliant | Stable, evidence-driven — behavioral reversal |
 | Gemini Flash | Middle, hedges initially | Better as adjudicator than council member |
-| Mistral | Reliable SISTM adjudicator | Weak reviewer, recency-driven flips |
+| Mistral | Reliable proprietary argumentation method adjudicator | Weak reviewer, recency-driven flips |

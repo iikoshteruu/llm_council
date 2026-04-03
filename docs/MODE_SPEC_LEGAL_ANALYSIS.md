@@ -4,7 +4,7 @@
 
 Evaluate legal and regulatory questions where the answer depends on statutory interpretation, precedent application, and jurisdictional reasoning — not opinion or mechanism.
 
-SISTM tests: "Can the model commit to a position under adversarial pressure?"
+proprietary argumentation method tests: "Can the model commit to a position under adversarial pressure?"
 Code review tests: "Can the model find bugs and cite evidence?"
 Research synthesis tests: "Can the model weigh competing evidence and acknowledge uncertainty?"
 Legal analysis tests: "Can the model identify the controlling authority, apply it correctly, and distinguish the question from superficially similar cases?"
@@ -26,7 +26,7 @@ Examples of out-of-scope (for now):
 
 ## Input format
 
-Plain text legal/regulatory questions. No forced binary (unlike SISTM). The question should identify a specific legal issue and ask for analysis.
+Plain text legal/regulatory questions. No forced binary (unlike proprietary argumentation method). The question should identify a specific legal issue and ask for analysis.
 
 Input type: `"question"` — normalized to a single user turn internally.
 
@@ -126,7 +126,7 @@ You are revising your legal analysis after seeing critiques. Address the stronge
 
 ## Key differences from other modes
 
-| Dimension | SISTM | Code Review | Research Synthesis | Legal Analysis |
+| Dimension | proprietary argumentation method | Code Review | Research Synthesis | Legal Analysis |
 |-----------|-------|-------------|-------------------|----------------|
 | Authority | Mechanism-based | Line-specific | Source-specific | Statute/case-specific |
 | Uncertainty | Penalized | N/A | Rewarded | Depends (genuine split vs hedge) |

@@ -4,7 +4,7 @@
 
 Evaluate security analysis of systems, architectures, or configurations where the answer depends on identifying attack vectors, assessing exploitability, and recommending mitigations — not opinion or general security advice.
 
-SISTM tests: "Can the model commit to a position under adversarial pressure?"
+proprietary argumentation method tests: "Can the model commit to a position under adversarial pressure?"
 Code review tests: "Can the model find bugs and cite evidence?"
 Research synthesis tests: "Can the model weigh competing evidence and acknowledge uncertainty?"
 Legal analysis tests: "Can the model identify controlling authority and apply it correctly?"
@@ -126,7 +126,7 @@ You are revising your threat assessment after seeing peer critiques. Address the
 
 ## Key differences from other modes
 
-| Dimension | SISTM | Code Review | Research Synthesis | Legal Analysis | Threat Assessment |
+| Dimension | proprietary argumentation method | Code Review | Research Synthesis | Legal Analysis | Threat Assessment |
 |-----------|-------|-------------|-------------------|----------------|-------------------|
 | Unit | Position | Bug finding | Evidence | Legal rule | Attack vector |
 | Authority | Mechanism | Code lines | Studies/data | Statute/case | System component |
