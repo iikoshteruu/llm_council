@@ -401,6 +401,14 @@ Use:
 - Effect: threat assessment can now be selected in the browser, uses the existing code-style paste path for custom system descriptions, and writes benchmark artifacts under its own mode namespace.
 - Comparability: no scoring change. This is plumbing required to expose the mode and run its first benchmark batch.
 
+## 2026-04-03 — Corpus Hygiene Tightened For Generated Outputs And Duplicate Batches
+
+- Area: corpus/runtime hygiene
+- Change: ignored mode-specific aggregate/report outputs in Git, clarified per-mode benchmark root conventions in the runbook, and removed the accidental duplicate baseline threat-assessment batch from the canonical corpus.
+- Motivation: generated aggregate/report files were showing up as repo noise, and one threat-assessment baseline batch was launched twice during long-running execution.
+- Effect: the working tree stays focused on source changes, and the threat-assessment benchmark corpus now contains one authoritative baseline run set instead of two overlapping copies.
+- Comparability: no scoring logic changed. Corpus interpretation improved because duplicate benchmark artifacts were removed from the canonical set.
+
 ## 2026-04-02 — Threat Assessment Benchmarked and Adjudicator Decided
 
 - Area: mode system / methodology

@@ -1,7 +1,9 @@
 # Run artifacts and results
 results/
 council_aggregate.json
+council_aggregate_*.json
 council_report.html
+council_report_*.html
 
 # Secrets
 .env

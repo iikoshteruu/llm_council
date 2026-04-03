@@ -346,11 +346,17 @@ The following are mode-agnostic and do not need to be redefined:
 ## Benchmark Hygiene
 
 - `results/legacy/` is the historical archive. Keep older mixed-era runs there.
-- `results/current/` is the stable benchmark corpus for SISTM. Put new SISTM exports there.
-- `results/current/code_review/` is the code review benchmark corpus. Each test case gets its own subdirectory.
+- `results/current/` is the active benchmark root. Each operational mode gets its own subdirectory under it.
+- Use per-mode corpus roots:
+  - `results/current/sistm_stress/`
+  - `results/current/code_review*/`
+  - `results/current/research_synthesis*/`
+  - `results/current/legal_analysis*/`
+  - `results/current/threat_assessment*/`
 - `results/run_id.txt` stays at the top level. Do not move it; the runner uses it directly.
 - Aggregate/report generation should target mode-specific paths. The aggregator partitions automatically when files contain mixed modes.
 - Generate the benchmark aggregate/report from `results/current/`, not from the combined `results/` tree.
+- Canonical benchmark runs should be unique per `(mode, prompt case, code hash)` unless you are intentionally doing repeatability testing. If an operator accidentally launches a duplicate batch, keep one complete run set and remove the duplicate artifacts before treating the corpus as canonical.
 
 Example:
 
