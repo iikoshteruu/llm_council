@@ -15,6 +15,7 @@ Usage:
 import sys
 import json
 import os
+from html import escape
 from datetime import datetime
 
 MODEL_COLORS = {
@@ -24,6 +25,10 @@ MODEL_COLORS = {
 }
 
 MODEL_ORDER = ["Claude Opus", "GPT-4.1", "Gemini Flash"]
+
+
+def h(value):
+    return escape("" if value is None else str(value), quote=True)
 
 
 def load_json(path):
@@ -107,8 +112,8 @@ def generate_report(agg_data, compare_data=None):
 </head>
 <body>
 <div class="container">
-<h1>Council Runner Report{' — ' + agg_data.get('mode', '').replace('_', ' ').title() if agg_data.get('mode') else ''}</h1>
-<div class="subtitle">Generated {datetime.now().strftime('%Y-%m-%d %H:%M')} · {len(domains)} domains · {sum(s['n_replies'] for s in summary.values())} scored replies{' · Mode: ' + agg_data.get('mode', '') if agg_data.get('mode') else ''}</div>
+<h1>Council Runner Report{' — ' + h(agg_data.get('mode', '').replace('_', ' ').title()) if agg_data.get('mode') else ''}</h1>
+<div class="subtitle">Generated {datetime.now().strftime('%Y-%m-%d %H:%M')} · {len(domains)} domains · {sum(s['n_replies'] for s in summary.values())} scored replies{' · Mode: ' + h(agg_data.get('mode', '')) if agg_data.get('mode') else ''}</div>
 """)
 
     # ── Stat cards ──
@@ -122,7 +127,7 @@ def generate_report(agg_data, compare_data=None):
         html.append(f"""
         <div class="stat-box">
           <div class="stat-value" style="color:{color}">{s['avg_score']:.1f}</div>
-          <div class="stat-label">{m} avg score</div>
+          <div class="stat-label">{h(m)} avg score</div>
           <div style="margin-top:8px;font-size:12px;color:#94a3b8;">
             Flip rate: <span class="{'warn' if flip_pct > 20 else 'good'}">{flip_pct:.0f}%</span> ·
             Net: <span class="{net_class}">{net:+d}</span>
@@ -137,7 +142,7 @@ def generate_report(agg_data, compare_data=None):
     for m in models:
         s = summary[m]
         color = MODEL_COLORS.get(m, "#94a3b8")
-        html.append(f'<tr><td class="model-name" style="color:{color}">{m}</td>'
+        html.append(f'<tr><td class="model-name" style="color:{color}">{h(m)}</td>'
                      f'<td>{s["avg_score"]:.1f}</td>'
                      f'<td>{s["std_score"]:.1f}</td>'
                      f'<td>{s["n_replies"]}</td>'
@@ -151,14 +156,14 @@ def generate_report(agg_data, compare_data=None):
         d_models = [m for m in models if m in d_data]
         if not d_models:
             continue
-        html.append(f'<h3>{domain.replace("_", " ").title()}</h3>')
+        html.append(f'<h3>{h(domain.replace("_", " ").title())}</h3>')
         html.append('<div class="card"><table>')
         html.append('<tr><th>Model</th><th>Mean</th><th>StdDev</th><th>N</th><th></th></tr>')
         d_max = max((d_data[m]["avg_score"] for m in d_models), default=35)
         for m in d_models:
             dd = d_data[m]
             color = MODEL_COLORS.get(m, "#94a3b8")
-            html.append(f'<tr><td class="model-name" style="color:{color}">{m}</td>'
+            html.append(f'<tr><td class="model-name" style="color:{color}">{h(m)}</td>'
                          f'<td>{dd["avg_score"]:.1f}</td>'
                          f'<td>{dd["std_score"]:.1f}</td>'
                          f'<td>{dd["n_replies"]}</td>'
@@ -180,7 +185,7 @@ def generate_report(agg_data, compare_data=None):
         bonus = s["avg_conviction_bonus"]
         bonus_class = "good" if bonus > 1.5 else ("warn" if bonus > 0.5 else "bad")
         html.append(
-            f'<tr><td class="model-name" style="color:{color}">{m}</td>'
+            f'<tr><td class="model-name" style="color:{color}">{h(m)}</td>'
             f'<td>{pct_bar_html(flip_pct, color)}</td>'
             f'<td class="{uncited_class}">{uncited_pct:.1f}%</td>'
             f'<td class="{bonus_class}">{bonus:+.2f}</td>'
@@ -195,7 +200,7 @@ def generate_report(agg_data, compare_data=None):
         html.append('<div class="card"><p style="font-size:13px;color:#94a3b8;margin-bottom:12px;">'
                      'When a model flips with cited_rebuttal, which model\'s rebuttal caused it?</p><table>')
         all_sources = sorted(set(s for m in models for s in summary[m].get("flip_provenance", {})))
-        html.append('<tr><th>Flipped Model</th>' + ''.join(f'<th>Caused by {s}</th>' for s in all_sources) + '</tr>')
+        html.append('<tr><th>Flipped Model</th>' + ''.join(f'<th>Caused by {h(s)}</th>' for s in all_sources) + '</tr>')
         for m in models:
             color = MODEL_COLORS.get(m, "#94a3b8")
             prov = summary[m].get("flip_provenance", {})
@@ -204,7 +209,7 @@ def generate_report(agg_data, compare_data=None):
                 for s in all_sources:
                     cnt = prov.get(s, 0)
                     cells.append(f'<td style="text-align:center" class="{"highlight" if cnt > 0 else ""}">{cnt}</td>')
-                html.append(f'<tr><td class="model-name" style="color:{color}">{m}</td>{"".join(cells)}</tr>')
+                html.append(f'<tr><td class="model-name" style="color:{color}">{h(m)}</td>{"".join(cells)}</tr>')
         html.append('</table></div>')
 
     # ── Axis averages ──
@@ -224,7 +229,7 @@ def generate_report(agg_data, compare_data=None):
             intensity = val / 5.0
             bg = f"rgba({int(52 + 203 * intensity)}, {int(211 * intensity)}, {int(153 * intensity)}, 0.15)"
             cells.append(f'<td style="text-align:center;background:{bg}">{val:.2f}</td>')
-        html.append(f'<tr><td class="model-name" style="color:{color}">{m}</td>{"".join(cells)}</tr>')
+        html.append(f'<tr><td class="model-name" style="color:{color}">{h(m)}</td>{"".join(cells)}</tr>')
     html.append('</table></div>')
 
     # ── Strongest / Weakest ──
@@ -236,7 +241,7 @@ def generate_report(agg_data, compare_data=None):
         color = MODEL_COLORS.get(m, "#94a3b8")
         net = s["strongest_count"] - s["weakest_count"]
         net_class = "good" if net > 0 else ("bad" if net < 0 else "")
-        html.append(f'<tr><td class="model-name" style="color:{color}">{m}</td>'
+        html.append(f'<tr><td class="model-name" style="color:{color}">{h(m)}</td>'
                      f'<td>{s["strongest_count"]}</td>'
                      f'<td>{s["weakest_count"]}</td>'
                      f'<td class="{net_class}" style="font-weight:700">{net:+d}</td></tr>')
@@ -247,7 +252,7 @@ def generate_report(agg_data, compare_data=None):
     all_flaws = sorted(set(f for m in models for f in summary[m].get("flaws", {}).keys()))
     if all_flaws:
         html.append('<div class="card"><table>')
-        html.append('<tr><th>Model</th>' + ''.join(f'<th>{f}</th>' for f in all_flaws) + '</tr>')
+        html.append('<tr><th>Model</th>' + ''.join(f'<th>{h(f)}</th>' for f in all_flaws) + '</tr>')
         for m in models:
             color = MODEL_COLORS.get(m, "#94a3b8")
             cells = []
@@ -255,7 +260,7 @@ def generate_report(agg_data, compare_data=None):
                 cnt = summary[m].get("flaws", {}).get(f, 0)
                 cls = "bad" if cnt > 5 else ("warn" if cnt > 2 else "")
                 cells.append(f'<td class="{cls}" style="text-align:center">{cnt}</td>')
-            html.append(f'<tr><td class="model-name" style="color:{color}">{m}</td>{"".join(cells)}</tr>')
+            html.append(f'<tr><td class="model-name" style="color:{color}">{h(m)}</td>{"".join(cells)}</tr>')
         html.append('</table></div>')
 
     # ── Discriminative power ──
@@ -271,14 +276,14 @@ def generate_report(agg_data, compare_data=None):
             tag_cls = "good" if spread >= 3.0 else ("warn" if spread >= 1.5 else "")
             tag_label = "HIGH" if spread >= 3.0 else ("MED" if spread >= 1.5 else "LOW")
             model_cells = ", ".join(
-                f'<span style="color:{MODEL_COLORS.get(m, "#94a3b8")}">{m}: {avg:.1f}</span>'
+                f'<span style="color:{MODEL_COLORS.get(m, "#94a3b8")}">{h(m)}: {avg:.1f}</span>'
                 for m, avg in sorted(info.get("model_means", {}).items())
             )
             html.append(
                 f'<tr><td class="{tag_cls}" style="font-weight:700">{spread:.2f}'
                 f' <span class="tag tag-{tag_cls or "good"}">{tag_label}</span></td>'
                 f'<td>{info["n_runs"]}</td>'
-                f'<td style="font-size:13px">"{q_fp}..."</td>'
+                f'<td style="font-size:13px">"{h(q_fp)}..."</td>'
                 f'<td style="font-size:12px">{model_cells}</td></tr>'
             )
         html.append('</table></div>')
@@ -297,13 +302,13 @@ def generate_report(agg_data, compare_data=None):
             tag_label = "STABLE" if ratio >= 0.8 else ("MIXED" if ratio >= 0.5 else "UNSTABLE")
             dist_parts = []
             for label, count in sorted(info.get("label_distribution", {}).items(), key=lambda x: -x[1]):
-                dist_parts.append(f'{count}x "{label}"')
-            dist_str = ", ".join(dist_parts) if len(dist_parts) > 1 else f'"{info["dominant_label"]}"'
+                dist_parts.append(f'{count}x "{h(label)}"')
+            dist_str = ", ".join(dist_parts) if len(dist_parts) > 1 else f'"{h(info["dominant_label"])}"'
             html.append(
                 f'<tr><td class="{tag_cls}" style="font-weight:700">{ratio:.0%}'
                 f' <span class="tag tag-{tag_cls}">{tag_label}</span></td>'
                 f'<td>{info["n_runs"]}</td>'
-                f'<td style="font-size:13px">"{q_fp}..."</td>'
+                f'<td style="font-size:13px">"{h(q_fp)}..."</td>'
                 f'<td style="font-size:12px">{dist_str}</td></tr>'
             )
         html.append('</table></div>')
@@ -315,7 +320,7 @@ def generate_report(agg_data, compare_data=None):
         for item in order_sensitive:
             qt = item.get("text", "")
             qi = item.get("question_index", "?")
-            html.append(f'<li><span class="highlight">Q{qi}</span>: {qt}</li>')
+            html.append(f'<li><span class="highlight">Q{qi}</span>: {h(qt)}</li>')
         html.append('</ul></div>')
 
     # ── Per-run trends (domain + code_hash buckets) ──
@@ -330,8 +335,8 @@ def generate_report(agg_data, compare_data=None):
         for (dom, ch), runs in sorted(buckets.items(), key=lambda x: (x[0][0], x[0][1])):
             if len(runs) < 2:
                 continue
-            html.append(f'<div class="card"><h3>{dom} · code_hash {ch}</h3>')
-            html.append('<table><tr><th>Run</th>' + ''.join(f'<th style="color:{MODEL_COLORS.get(m,"#94a3b8")}">{m}</th>' for m in models) + '</tr>')
+            html.append(f'<div class="card"><h3>{h(dom)} · code_hash {h(ch)}</h3>')
+            html.append('<table><tr><th>Run</th>' + ''.join(f'<th style="color:{MODEL_COLORS.get(m,"#94a3b8")}">{h(m)}</th>' for m in models) + '</tr>')
             for r in sorted(runs, key=lambda x: x.get("run_id") or 0):
                 row = [f'<td>{r.get("run_id")}</td>']
                 for m in models:

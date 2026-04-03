@@ -100,6 +100,8 @@ THREAT_ASSESSMENT_PRESETS = {
 app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="")
 RUN_JOBS = {}
 RUN_JOBS_LOCK = threading.Lock()
+RUN_JOBS_TTL_SECONDS = int(os.getenv("RUN_JOBS_TTL_SECONDS", "3600"))
+RUN_JOBS_MAX = int(os.getenv("RUN_JOBS_MAX", "200"))
 
 
 @app.route("/")
@@ -299,9 +301,37 @@ def set_job_state(job_id, **fields):
         job.update(fields)
 
 
+def _prune_run_jobs_locked(now=None):
+    now = now or time.time()
+    expired = []
+    for job_id, job in RUN_JOBS.items():
+        if not job.get("done"):
+            continue
+        finished_at = job.get("finished_at") or job.get("created_at") or now
+        if now - finished_at > RUN_JOBS_TTL_SECONDS:
+            expired.append(job_id)
+    for job_id in expired:
+        RUN_JOBS.pop(job_id, None)
+
+    if len(RUN_JOBS) <= RUN_JOBS_MAX:
+        return
+
+    def sort_key(item):
+        _, job = item
+        return (
+            0 if job.get("done") else 1,
+            job.get("finished_at") or job.get("created_at") or 0,
+        )
+
+    overflow = len(RUN_JOBS) - RUN_JOBS_MAX
+    for job_id, _job in sorted(RUN_JOBS.items(), key=sort_key)[:overflow]:
+        RUN_JOBS.pop(job_id, None)
+
+
 def create_job():
     job_id = uuid.uuid4().hex
     with RUN_JOBS_LOCK:
+        _prune_run_jobs_locked()
         RUN_JOBS[job_id] = {
             "id": job_id,
             "created_at": time.time(),
@@ -397,6 +427,7 @@ def _run_council_job(job_id, prompt_file, run_rebuttal, run_refine, run_reverse_
             result=result,
             stderr=stderr_text,
             returncode=returncode,
+            finished_at=time.time(),
             done=True,
         )
         add_job_event(job_id, "complete", {
@@ -405,7 +436,7 @@ def _run_council_job(job_id, prompt_file, run_rebuttal, run_refine, run_reverse_
             "run_id": result.get("run_id") if isinstance(result, dict) else None,
         })
     except Exception as e:
-        set_job_state(job_id, status="failed", result={"error": str(e)}, stderr=str(e), returncode=-1, done=True)
+        set_job_state(job_id, status="failed", result={"error": str(e)}, stderr=str(e), returncode=-1, finished_at=time.time(), done=True)
         add_job_event(job_id, "error", {"message": str(e)})
     finally:
         if temp_file_path:
@@ -638,6 +669,7 @@ def api_run_stream(job_id):
         idx = 0
         while True:
             with RUN_JOBS_LOCK:
+                _prune_run_jobs_locked()
                 job = RUN_JOBS.get(job_id)
                 if not job:
                     yield "event: error\ndata: {\"error\":\"not_found\"}\n\n"
@@ -662,6 +694,7 @@ def api_run_result(job_id):
     if auth_error:
         return auth_error
     with RUN_JOBS_LOCK:
+        _prune_run_jobs_locked()
         job = RUN_JOBS.get(job_id)
         if not job:
             return jsonify({"error": "not_found"}), 404

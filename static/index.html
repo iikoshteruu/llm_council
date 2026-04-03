@@ -528,6 +528,17 @@ function sseUrl(jobId) {
 function modelColor(name) { return MODEL_COLORS[name] || '#94a3b8'; }
 function modelShort(name) { return MODEL_SHORT[name] || name.split('/').pop(); }
 function activeCouncilMode() { return $('councilMode').value || 'sistm_stress'; }
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+function setErrorBox(container, title, detail) {
+  container.innerHTML = `<div class="error-box"><strong>${escapeHtml(title)}</strong><pre>${escapeHtml(detail || 'Unknown error')}</pre></div>`;
+}
 
 function rebuildModeOptions(modeKey) {
   const select = $('mode');
@@ -668,7 +679,7 @@ $('runBtn').onclick = async () => {
         (councilMode === 'research_synthesis' || councilMode === 'legal_analysis') ? 'This mode requires a question.' :
         councilMode === 'threat_assessment' ? 'Threat assessment mode requires a system description.' :
         'Custom mode requires JSONL input.';
-      $('results').innerHTML = `<div class="error-box">${msg}</div>`;
+      setErrorBox($('results'), 'Input error', msg);
       btn.disabled = false;
       return;
     }
@@ -756,7 +767,7 @@ $('runBtn').onclick = async () => {
     if (!res.ok || submitResult.error || !submitResult.job_id) {
       clearInterval(timer);
       hideProgress();
-      $('results').innerHTML = `<div class="error-box"><strong>Submit failed</strong><pre>${submitResult.detail || submitResult.error || 'Unknown error'}</pre></div>`;
+      setErrorBox($('results'), 'Submit failed', submitResult.detail || submitResult.error || 'Unknown error');
       btn.disabled = false;
       return;
     }
@@ -781,7 +792,7 @@ $('runBtn').onclick = async () => {
             $('runStatus').textContent = '';
 
             if (pollData.returncode !== 0 || !pollData.data || pollData.data.error) {
-              $('results').innerHTML = `<div class="error-box"><strong>Run failed</strong><pre>${pollData.stderr || pollData.data?.error || 'Unknown error'}</pre></div>`;
+              setErrorBox($('results'), 'Run failed', pollData.stderr || pollData.data?.error || 'Unknown error');
             } else {
               renderResults(pollData.data);
               $('exportBar').style.display = 'flex';
@@ -799,7 +810,7 @@ $('runBtn').onclick = async () => {
   } catch (e) {
     clearInterval(timer);
     hideProgress();
-    $('results').innerHTML = `<div class="error-box"><strong>Request failed</strong><pre>${e}</pre></div>`;
+    setErrorBox($('results'), 'Request failed', String(e));
     btn.disabled = false;
   }
 };
@@ -833,9 +844,9 @@ function renderResults(data) {
     const strongest = q.strongest_weighted;
     const weakest = q.weakest_weighted;
     header.innerHTML = `
-      <div class="q-title">Q${q.question_index}: ${truncate(q.question_text, 120)}</div>
+      <div class="q-title">Q${q.question_index}: ${escapeHtml(truncate(q.question_text, 120))}</div>
       <div class="q-meta">
-        ${strongest ? `<span style="color:${modelColor(strongest)};font-size:12px;font-weight:600;">${modelShort(strongest)}</span>` : ''}
+        ${strongest ? `<span style="color:${modelColor(strongest)};font-size:12px;font-weight:600;">${escapeHtml(modelShort(strongest))}</span>` : ''}
         <span class="chevron">&#9660;</span>
       </div>`;
     header.onclick = () => card.classList.toggle('open');
@@ -850,14 +861,14 @@ function renderResults(data) {
     if (Array.isArray(mergedFindings) && mergedFindings.length) {
       const fb = document.createElement('div');
       fb.className = 'findings-box';
-      fb.innerHTML = `<strong>Findings:</strong><ul>${mergedFindings.map(f => `<li><strong>${f.severity || 'unknown'}</strong> · ${f.status || 'unknown'} · ${f.finding || ''}</li>`).join('')}</ul>`;
+      fb.innerHTML = `<strong>Findings:</strong><ul>${mergedFindings.map(f => `<li><strong>${escapeHtml(f.severity || 'unknown')}</strong> · ${escapeHtml(f.status || 'unknown')} · ${escapeHtml(f.finding || '')}</li>`).join('')}</ul>`;
       body.appendChild(fb);
     }
     const consensus = q.phase2?.consensus;
     if (consensus) {
       const cb = document.createElement('div');
       cb.className = 'consensus-bar';
-      cb.innerHTML = `<strong>Consensus:</strong> ${consensus}`;
+      cb.innerHTML = `<strong>Consensus:</strong> ${escapeHtml(consensus)}`;
       body.appendChild(cb);
     }
 
@@ -875,7 +886,7 @@ function renderResults(data) {
         compare.innerHTML += `<div class="score-compare-item">
           <div class="score-compare-bar" style="width:${pct}%;background:${color};margin:0 auto;"></div>
           <div class="score-compare-val" style="color:${color}">${(r.weighted_score || 0).toFixed(1)}</div>
-          <div class="score-compare-name">${modelShort(r.model)}</div>
+          <div class="score-compare-name">${escapeHtml(modelShort(r.model))}</div>
         </div>`;
       });
       body.appendChild(compare);
@@ -900,19 +911,19 @@ function renderVerdict(v, qi) {
   let inner = `
     <div class="verdict-header">
       <span class="verdict-title">Council Verdict — Q${qi + 1}</span>
-      <span class="verdict-badge ${vtype}">${vtype}</span>
-      <span class="confidence-badge ${conf}">${conf} confidence</span>
+      <span class="verdict-badge ${vtype}">${escapeHtml(vtype)}</span>
+      <span class="confidence-badge ${conf}">${escapeHtml(conf)} confidence</span>
     </div>`;
 
   if (v.verdict) {
-    inner += `<div class="verdict-text">${v.verdict}</div>`;
+    inner += `<div class="verdict-text">${escapeHtml(v.verdict)}</div>`;
     const counts = [];
     if (v.findings_count !== undefined) counts.push(`${v.findings_count} findings`);
     if (v.confirmed_bugs !== undefined) counts.push(`${v.confirmed_bugs} confirmed`);
     if (v.disputed !== undefined) counts.push(`${v.disputed} disputed`);
-    inner += `<div class="verdict-basis">Basis: ${v.basis || ''}${v.reason ? ' &middot; ' + v.reason : ''}${counts.length ? ' &middot; ' + counts.join(' · ') : ''}</div>`;
+    inner += `<div class="verdict-basis">Basis: ${escapeHtml(v.basis || '')}${v.reason ? ' &middot; ' + escapeHtml(v.reason) : ''}${counts.length ? ' &middot; ' + escapeHtml(counts.join(' · ')) : ''}</div>`;
   } else {
-    inner += `<div class="verdict-unresolved">${v.reason || 'Insufficiently stable to render confidently'}</div>`;
+    inner += `<div class="verdict-unresolved">${escapeHtml(v.reason || 'Insufficiently stable to render confidently')}</div>`;
   }
   el.innerHTML = inner;
   return el;
@@ -936,7 +947,7 @@ function renderReply(r, strongest, weakest) {
   const header = document.createElement('div');
   header.className = 'reply-header';
   header.innerHTML = `
-    <span class="reply-model" style="color:${color}">${modelShort(r.model)}</span>
+    <span class="reply-model" style="color:${color}">${escapeHtml(modelShort(r.model))}</span>
     <span class="reply-score" style="color:${color}">${score.toFixed(1)}</span>`;
   card.appendChild(header);
 
@@ -947,14 +958,14 @@ function renderReply(r, strongest, weakest) {
     `<span class="tag ${r.compliant ? 'tag-compliant' : 'tag-noncompliant'}">${r.compliant ? 'Compliant' : 'Noncompliant'}</span>` +
     (isStrongest ? '<span class="tag tag-strongest">Strongest</span>' : '') +
     (isWeakest ? '<span class="tag tag-weakest">Weakest</span>' : '') +
-    (flipped ? `<span class="tag tag-flip">Flip: ${flipReason}${flipSource ? ' ← ' + modelShort(flipSource) : ''}</span>` : '<span class="tag tag-held">Held</span>') +
+    (flipped ? `<span class="tag tag-flip">Flip: ${escapeHtml(flipReason)}${flipSource ? ' ← ' + escapeHtml(modelShort(flipSource)) : ''}</span>` : '<span class="tag tag-held">Held</span>') +
     (r.conviction_bonus !== null && r.conviction_bonus !== undefined ? `<span class="tag tag-conviction">Conv: ${r.conviction_bonus > 0 ? '+' : ''}${r.conviction_bonus}</span>` : '');
 
   // Phase 1 flaws
   const phase1 = r.phase1 || [];
   (Array.isArray(phase1) ? phase1 : [phase1]).forEach(p => {
     if (p && p.flaw_label) {
-      badges.innerHTML += `<span class="tag tag-flaw">${p.flaw_label}</span>`;
+      badges.innerHTML += `<span class="tag tag-flaw">${escapeHtml(p.flaw_label)}</span>`;
     }
   });
   card.appendChild(badges);
@@ -999,7 +1010,7 @@ function renderReply(r, strongest, weakest) {
       const axColor = AXIS_COLORS[axis] || '#94a3b8';
       grid.innerHTML += `
         <div class="axis-row">
-          <span class="axis-label">${AXIS_SHORT[axis] || axis}</span>
+          <span class="axis-label">${escapeHtml(AXIS_SHORT[axis] || axis)}</span>
           <div class="axis-track"><div class="axis-fill" style="width:${pct}%;background:${axColor}"></div></div>
           <span class="axis-val">${obj.score}</span>
         </div>`;
@@ -1140,14 +1151,14 @@ async function loadDashboard() {
     }
     const data = await res.json();
     if (data.error) {
-      $('dashboardLoading').innerHTML = `<div>${data.error === 'aggregate_missing' ? 'No aggregate data. Run the orchestrator or aggregator to generate.' : data.error}</div>`;
+      $('dashboardLoading').innerHTML = `<div>${escapeHtml(data.error === 'aggregate_missing' ? 'No aggregate data. Run the orchestrator or aggregator to generate.' : data.error)}</div>`;
       return;
     }
     $('dashboardLoading').style.display = 'none';
     $('dashboardContent').style.display = 'block';
     renderDashboard(data.aggregate);
   } catch (e) {
-    $('dashboardLoading').innerHTML = `<div>Error loading dashboard: ${e}</div>`;
+    $('dashboardLoading').innerHTML = `<div>${escapeHtml(`Error loading dashboard: ${e}`)}</div>`;
   }
 }
 
@@ -1171,7 +1182,7 @@ function renderDashboard(agg) {
     const flipPct = ((s.flip_rate || 0) * 100).toFixed(0);
     grid.innerHTML += `<div class="dash-stat">
       <div class="dash-stat-value" style="color:${color}">${(s.avg_score || 0).toFixed(1)}</div>
-      <div class="dash-stat-label">${m}</div>
+      <div class="dash-stat-label">${escapeHtml(m)}</div>
       <div class="dash-stat-sub">Flip: ${flipPct}% · Net: ${net >= 0 ? '+' : ''}${net} · N=${s.n_replies || 0}</div>
     </div>`;
   });
@@ -1186,7 +1197,7 @@ function renderDashboard(agg) {
     const s = summary[m]; const color = modelColor(m) || '#94a3b8';
     const net = (s.strongest_count || 0) - (s.weakest_count || 0);
     const netStyle = net > 0 ? 'color:var(--accent-green)' : (net < 0 ? 'color:var(--accent-red)' : '');
-    table += `<tr><td style="color:${color};font-weight:700">${m}</td><td>${(s.avg_score||0).toFixed(1)}</td><td>${(s.std_score||0).toFixed(1)}</td><td>${s.n_replies||0}</td><td>${s.strongest_count||0}</td><td>${s.weakest_count||0}</td><td style="font-weight:700;${netStyle}">${net>=0?'+':''}${net}</td></tr>`;
+    table += `<tr><td style="color:${color};font-weight:700">${escapeHtml(m)}</td><td>${(s.avg_score||0).toFixed(1)}</td><td>${(s.std_score||0).toFixed(1)}</td><td>${s.n_replies||0}</td><td>${s.strongest_count||0}</td><td>${s.weakest_count||0}</td><td style="font-weight:700;${netStyle}">${net>=0?'+':''}${net}</td></tr>`;
   });
   scoresSection.innerHTML += table + '</table>';
   el.appendChild(scoresSection);
@@ -1197,10 +1208,10 @@ function renderDashboard(agg) {
     const axSection = document.createElement('div');
     axSection.className = 'dash-section';
     axSection.innerHTML = '<h3>Axis Score Averages</h3>';
-    let ax = '<table class="dash-table"><tr><th>Model</th>' + allAxes.map(a => `<th>${AXIS_SHORT[a]||a}</th>`).join('') + '</tr>';
+    let ax = '<table class="dash-table"><tr><th>Model</th>' + allAxes.map(a => `<th>${escapeHtml(AXIS_SHORT[a]||a)}</th>`).join('') + '</tr>';
     models.forEach(m => {
       const color = modelColor(m) || '#94a3b8'; const axes = summary[m].axes || {};
-      ax += `<tr><td style="color:${color};font-weight:700">${m}</td>`;
+      ax += `<tr><td style="color:${color};font-weight:700">${escapeHtml(m)}</td>`;
       allAxes.forEach(a => { const v = axes[a]; ax += `<td style="text-align:center;background:rgba(52,211,153,${v?(v/5)*0.2:0})">${v!==undefined?v.toFixed(2):'—'}</td>`; });
       ax += '</tr>';
     });
@@ -1217,7 +1228,7 @@ function renderDashboard(agg) {
     const s = summary[m]; const color = modelColor(m) || '#94a3b8';
     const fp = ((s.flip_rate||0)*100).toFixed(1); const up = ((s.uncited_flip_rate||0)*100).toFixed(1);
     const b = s.avg_conviction_bonus || 0;
-    ft += `<tr><td style="color:${color};font-weight:700">${m}</td><td style="color:${fp>25?'var(--accent-red)':fp>15?'var(--accent-yellow)':'var(--accent-green)'}">${fp}%</td><td>${up}%</td><td style="color:${b>1?'var(--accent-green)':b>0?'var(--accent-yellow)':'var(--accent-red)'}">${b>=0?'+':''}${b.toFixed(2)}</td></tr>`;
+    ft += `<tr><td style="color:${color};font-weight:700">${escapeHtml(m)}</td><td style="color:${fp>25?'var(--accent-red)':fp>15?'var(--accent-yellow)':'var(--accent-green)'}">${fp}%</td><td>${up}%</td><td style="color:${b>1?'var(--accent-green)':b>0?'var(--accent-yellow)':'var(--accent-red)'}">${b>=0?'+':''}${b.toFixed(2)}</td></tr>`;
   });
   flipSection.innerHTML += ft + '</table>';
   el.appendChild(flipSection);
@@ -1230,9 +1241,9 @@ function renderDashboard(agg) {
     domains.forEach(d => {
       const dd = byDomain[d]; const dm = models.filter(m => dd[m]);
       if (!dm.length) return;
-      let dt = `<div style="margin-bottom:6px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px">${d.replace(/_/g,' ')}</div>`;
+      let dt = `<div style="margin-bottom:6px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px">${escapeHtml(d.replace(/_/g,' '))}</div>`;
       dt += '<table class="dash-table"><tr><th>Model</th><th>Mean</th><th>StdDev</th><th>N</th></tr>';
-      dm.forEach(m => { const s = dd[m]; dt += `<tr><td style="color:${modelColor(m)||'#94a3b8'};font-weight:700">${m}</td><td>${(s.avg_score||0).toFixed(1)}</td><td>${(s.std_score||0).toFixed(1)}</td><td>${s.n_replies||0}</td></tr>`; });
+      dm.forEach(m => { const s = dd[m]; dt += `<tr><td style="color:${modelColor(m)||'#94a3b8'};font-weight:700">${escapeHtml(m)}</td><td>${(s.avg_score||0).toFixed(1)}</td><td>${(s.std_score||0).toFixed(1)}</td><td>${s.n_replies||0}</td></tr>`; });
       domSection.innerHTML += dt + '</table>';
     });
     el.appendChild(domSection);
@@ -1250,7 +1261,7 @@ function renderDashboard(agg) {
       const info = disc[q]; const sp = info.score_spread||0;
       const tag = sp>=3?'HIGH':sp>=1.5?'MED':'LOW';
       const cls = sp>=3?'color:var(--accent-green)':sp>=1.5?'color:var(--accent-yellow)':'';
-      dt += `<tr><td style="font-weight:700;${cls}">${sp.toFixed(2)} ${tag}</td><td>${info.n_runs||0}</td><td style="font-size:12px">"${truncate(q,70)}..."</td></tr>`;
+      dt += `<tr><td style="font-weight:700;${cls}">${sp.toFixed(2)} ${tag}</td><td>${info.n_runs||0}</td><td style="font-size:12px">"${escapeHtml(truncate(q,70))}..."</td></tr>`;
     });
     ds.innerHTML += dt + '</table>';
     el.appendChild(ds);
@@ -1268,7 +1279,7 @@ function renderDashboard(agg) {
       const info = stab[q]; const r = info.stability||0;
       const tag = r>=0.8?'STABLE':r>=0.5?'MIXED':'UNSTABLE';
       const cls = r>=0.8?'color:var(--accent-green)':r>=0.5?'color:var(--accent-yellow)':'color:var(--accent-red)';
-      st += `<tr><td style="font-weight:700;${cls}">${(r*100).toFixed(0)}% ${tag}</td><td>${info.n_runs||0}</td><td style="font-size:12px">"${truncate(q,55)}..."</td><td style="font-size:12px">${truncate(info.dominant_label||'',35)}</td></tr>`;
+      st += `<tr><td style="font-weight:700;${cls}">${(r*100).toFixed(0)}% ${tag}</td><td>${info.n_runs||0}</td><td style="font-size:12px">"${escapeHtml(truncate(q,55))}..."</td><td style="font-size:12px">${escapeHtml(truncate(info.dominant_label||'',35))}</td></tr>`;
     });
     ss.innerHTML += st + '</table>';
     el.appendChild(ss);

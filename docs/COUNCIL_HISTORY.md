@@ -449,6 +449,22 @@ Use:
 - Effect: dashboard mode selection now follows the current default variant for promoted modes instead of showing stale baseline aggregates.
 - Comparability: no scoring change. Dashboard interpretation is corrected to the intended default mode variant.
 
+## 2026-04-03 — Prompt Corpus Freeze Manifest Added
+
+- Area: corpus/documentation
+- Change: added `docs/CORPUS_FREEZE.md` and `prompts/CORPUS_MANIFEST.sha256` to freeze the authored prompt corpus by partition, file list, exact text volume, and file hash.
+- Motivation: the prompt corpus is now valuable enough to reuse independently, and it needs a clean boundary between authored source prompts and generated benchmark outputs.
+- Effect: the prompt corpus can now be referenced as an immutable input dataset with explicit exclusions and integrity checks.
+- Comparability: no scoring change. This is corpus governance and reproducibility metadata only.
+
+## 2026-04-03 — Frontend/Report XSS Closed and Async Job Retention Bounded
+
+- Area: web runtime / report generation
+- Change: escaped user-controlled strings before injecting them into `static/index.html` result/dashboard views and into `council_report.py` HTML output. Added bounded cleanup for `RUN_JOBS` with TTL and maximum retained job count.
+- Motivation: prompt/question/reply text and aggregated labels were being rendered with raw HTML insertion, creating a real XSS path in both the browser UI and generated reports. Async job metadata also accumulated in memory without eviction.
+- Effect: result rendering and HTML reports now treat prompt/reply/verdict text as data instead of executable markup, and long-lived web sessions no longer retain completed async jobs indefinitely.
+- Comparability: no scoring change. This is security/runtime hardening only.
+
 ## 2026-04-02 — Threat Assessment Benchmarked and Adjudicator Decided
 
 - Area: mode system / methodology
