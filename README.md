@@ -393,6 +393,7 @@ Given a system description, identify attack vectors. Reuses the findings-first p
 
 ## Documentation
 
+- [Methodology](docs/METHODOLOGY.md) -- how the system works, why it's built this way, and what the data shows
 - [System Reference](docs/COUNCIL_SYSTEM.md) -- architecture, modes, scoring, flaw taxonomy, known model behaviors
 - [Run Book](docs/COUNCIL_RUNBOOK.md) -- operational guide, troubleshooting, adding domains/models/modes
 - [Model Profiles](docs/MODEL_PROFILES.md) -- empirical behavioral findings per model across modes
