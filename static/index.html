@@ -542,7 +542,16 @@ function connectSSE(jobId) {
       try {
         const d = JSON.parse(e.data);
         if (d.stage_index !== undefined) {
-          updateProgress(d.stage_index, `<strong>${d.stage || ''}</strong> ${d.detail || ''}`);
+          // Use mode-specific verbs if available, fall back to SSE data
+          const cm = activeCouncilMode();
+          const sv = (window.STAGE_VERBS || {})[cm] || (window.STAGE_VERBS || {}).sistm_stress || {};
+          const keys = ['generation', 'rebuttal', 'refine', 'phase1', 'phase2', 'scoring', 'verdict'];
+          const verb = sv[keys[d.stage_index]];
+          if (verb) {
+            updateProgress(d.stage_index, `<strong>${verb[0]}</strong> — ${verb[1]}`);
+          } else {
+            updateProgress(d.stage_index, `<strong>${d.stage || ''}</strong> ${d.detail || ''}`);
+          }
         }
       } catch (err) {}
     });
@@ -550,7 +559,9 @@ function connectSSE(jobId) {
       try {
         const d = JSON.parse(e.data);
         if (d.status === 'running') {
-          updateProgress(0, '<strong>Council Generation</strong> — querying models...');
+          const cm = activeCouncilMode();
+          const sv = (window.STAGE_VERBS || {})[cm] || (window.STAGE_VERBS || {}).sistm_stress || {};
+          updateProgress(0, `<strong>${sv.generation[0]}</strong> — ${sv.generation[1]}`);
         }
       } catch (err) {}
     });
@@ -600,13 +611,64 @@ $('runBtn').onclick = async () => {
     else body.jsonl = input;
   }
 
-  // Determine which stages to show
-  const stages = ['Generation'];
-  if (body.rebuttal) stages.push('Rebuttal');
-  if (body.refine) stages.push('Refine');
-  stages.push('Phase 1', 'Phase 2', 'Scoring', 'Verdict');
+  // Mode-specific stage verbs (defined at module scope, referenced by SSE handler)
+  if (!window.STAGE_VERBS) window.STAGE_VERBS = {
+    sistm_stress: {
+      generation: ['Querying council', 'Models answering independently...'],
+      rebuttal: ['Challenging positions', 'Models rebutting each other...'],
+      refine: ['Revising positions', 'Models refining under pressure...'],
+      phase1: ['Labeling flaws', 'Adjudicator evaluating each reply...'],
+      phase2: ['Extracting consensus', 'Adjudicator ranking and synthesizing...'],
+      scoring: ['Scoring axes', 'Evaluating structural, empirical, rhetorical quality...'],
+      verdict: ['Rendering verdict', 'Classifying outcome and synthesizing judgment...'],
+    },
+    code_review: {
+      generation: ['Reviewing code', 'Models analyzing independently...'],
+      rebuttal: ['Disputing findings', 'Models challenging each other\'s reviews...'],
+      refine: ['Updating reviews', 'Models revising after peer critique...'],
+      phase1: ['Classifying findings', 'Adjudicator labeling each finding...'],
+      phase2: ['Merging findings', 'Deduplicating and flagging disagreements...'],
+      scoring: ['Scoring review quality', 'Evaluating bug ID, evidence, fix quality...'],
+      verdict: ['Delivering findings', 'Rendering confirmed vs disputed...'],
+    },
+    research_synthesis: {
+      generation: ['Synthesizing evidence', 'Models evaluating independently...'],
+      rebuttal: ['Citing counter-evidence', 'Models challenging evidence claims...'],
+      refine: ['Revising synthesis', 'Models incorporating critiques...'],
+      phase1: ['Evaluating sources', 'Adjudicator assessing evidence quality...'],
+      phase2: ['Weighing evidence', 'Adjudicator comparing evidence bases...'],
+      scoring: ['Scoring evidence', 'Evaluating citation, causation, uncertainty...'],
+      verdict: ['Concluding synthesis', 'Rendering supported vs contested...'],
+    },
+    legal_analysis: {
+      generation: ['Briefing counsel', 'Models analyzing independently...'],
+      rebuttal: ['Cross-examining', 'Models challenging legal reasoning...'],
+      refine: ['Revising briefs', 'Models addressing objections...'],
+      phase1: ['Evaluating authority', 'Adjudicator checking statutory grounding...'],
+      phase2: ['Weighing precedent', 'Adjudicator comparing authorities cited...'],
+      scoring: ['Scoring arguments', 'Evaluating authority, application, precision...'],
+      verdict: ['Rendering judgment', 'Classifying settled vs contested...'],
+    },
+    threat_assessment: {
+      generation: ['Scanning attack surface', 'Models assessing independently...'],
+      rebuttal: ['Contesting vectors', 'Models challenging threat assessments...'],
+      refine: ['Reassessing threats', 'Models revising after peer review...'],
+      phase1: ['Classifying threats', 'Adjudicator labeling each finding...'],
+      phase2: ['Merging threat intel', 'Deduplicating and assessing posture...'],
+      scoring: ['Scoring threat analysis', 'Evaluating exploitability, impact, mitigation...'],
+      verdict: ['Issuing assessment', 'Rendering confirmed vs disputed threats...'],
+    },
+  };
+
+  const STAGE_VERBS = window.STAGE_VERBS;
+  const verbs = STAGE_VERBS[councilMode] || STAGE_VERBS.sistm_stress;
+  const stageKeys = ['generation'];
+  if (body.rebuttal) stageKeys.push('rebuttal');
+  if (body.refine) stageKeys.push('refine');
+  stageKeys.push('phase1', 'phase2', 'scoring', 'verdict');
+  const stages = stageKeys.map(k => verbs[k][0]);
   showProgress(stages);
-  updateProgress(0, '<strong>Council Generation</strong> — querying models...');
+  updateProgress(0, `<strong>${verbs.generation[0]}</strong> — ${verbs.generation[1]}`);
 
   const startTime = Date.now();
   const timer = setInterval(() => {
