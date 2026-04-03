@@ -190,6 +190,45 @@ Axes score independently. A low score on one axis does not affect other axes. Th
 
 The adjudicator scores each axis via a separate LLM call. Parse failures fall back to a neutral score of 3 instead of flooring to 1. This prevents parse errors from distorting model rankings.
 
+### Interpreting scores
+
+The weighted score is a **mode-specific composite evaluation index**. It is not a universal quality metric.
+
+**What scores are for:**
+- Ranking models within the same mode (who performed best on this prompt under this rubric)
+- Measuring score spread across models (discriminative power — does the prompt separate quality?)
+- Tracking consistency across runs (StdDev — is a model reliable or volatile?)
+- Comparing the same model across prompts within a mode (where does it struggle?)
+
+**What scores are not for:**
+- Cross-mode comparison. A score of 34 in SISTM and 34 in code review measure different things with different axes and weights. They are not equivalent.
+- Absolute quality judgment. "34 is good" or "41 is excellent" is not meaningful without context. The number only has meaning relative to other models on the same prompt under the same rubric.
+- Comparison to external benchmarks. These scores are internal to this system and not calibrated against any external evaluation framework.
+
+**Theoretical maximums per mode:**
+
+Each axis scores 1-5. The maximum weighted score is the sum of all axis weights × 5, plus maximum conviction bonus (+2).
+
+| Mode | Axis weight sum | Max base score | Max with conviction | Typical strong score |
+|------|----------------|----------------|--------------------|--------------------|
+| SISTM | 7.0 | 35.0 | 37.0 | 32-37 |
+| Code Review | 8.5 | 42.5 | 44.5 | 36-44 |
+| Research Synthesis | 9.0 | 45.0 | 47.0 | 38-45 |
+| Legal Analysis | 8.5 | 42.5 | 44.5 | 36-44 |
+| Threat Assessment | 8.5 | 42.5 | 44.5 | 38-44 |
+
+The "typical strong score" column is empirical — what the strongest model in the benchmark corpus scores on average. It is not a target or threshold.
+
+**How to read dashboard scores:**
+
+A score like 41.6 means: "strong relative to the other models on this mode, under this rubric, in this corpus." It does not mean "A+" or "excellent" in any absolute sense.
+
+The most informative signals are:
+- **Score gap between models** — a 3-point gap is meaningful, a 0.5-point gap is noise
+- **Whether the strongest score comes with low disagreement** — high score + no disputed findings is stronger than high score + disputed findings
+- **Whether the strongest score comes with low uncited flips** — high score + uncited flips means the model may have arrived at the right answer for the wrong reason
+- **StdDev** — a model with avg 38 and StdDev 1.5 is more reliable than one with avg 40 and StdDev 7
+
 ---
 
 ## 7. Verdict Classification

@@ -296,6 +296,16 @@ Applied identically across all modes:
 - 0: Flip with cited rebuttal (legitimate evidence-driven update). Or no flip but original had a flaw.
 - -1: Flip without citing rebuttal evidence (recency/compliance-driven).
 
+### Interpreting scores
+
+Weighted scores are mode-specific composite indices — not universal quality metrics. Use them for within-mode relative comparison only:
+
+- **34 vs 41 within the same mode** = meaningful ranking difference
+- **34 in SISTM vs 34 in code review** = not comparable (different axes, different weights)
+- **"Is 34 good?"** = not a valid question without knowing the mode, the corpus, and the other models' scores
+
+The most informative signals are score gap between models, consistency (low StdDev), and whether the strongest score is accompanied by low uncited flips and low disagreement. See [Methodology](docs/METHODOLOGY.md) for the full interpretation guide including theoretical maximums per mode.
+
 ### Cross-run analytics
 
 | Metric | What it measures |
