@@ -254,6 +254,11 @@ def dashboard_mode_candidates(requested_mode: str):
         "code_review": ["code_review_gemini_adj", "code_review", "code_review_mistral_adj"],
         "code_review_gemini_adj": ["code_review_gemini_adj", "code_review"],
         "code_review_mistral_adj": ["code_review_mistral_adj", "code_review"],
+        "legal_analysis": ["legal_analysis_gemini_adj", "legal_analysis"],
+        "legal_analysis_gemini_adj": ["legal_analysis_gemini_adj", "legal_analysis"],
+        "legal_analysis_mistral_adj": ["legal_analysis_mistral_adj", "legal_analysis"],
+        "threat_assessment": ["threat_assessment_gemini_adj", "threat_assessment"],
+        "threat_assessment_gemini_adj": ["threat_assessment_gemini_adj", "threat_assessment"],
         "sistm_stress": ["sistm_stress"],
     }
     return aliases.get(requested_mode, [requested_mode])

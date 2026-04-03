@@ -441,6 +441,14 @@ Use:
 - Effect: the web UI now matches the actual benchmark corpus and can launch all 13 legal-analysis prompts without manual file selection.
 - Comparability: no scoring or adjudicator change. UI/runtime preset exposure only.
 
+## 2026-04-03 — Dashboard Mode Resolution Updated For Promoted Default Variants
+
+- Area: web/dashboard contract
+- Change: updated dashboard mode alias resolution so `legal_analysis` now prefers `legal_analysis_gemini_adj`, and `threat_assessment` prefers `threat_assessment_gemini_adj`, matching the promoted default adjudicators.
+- Motivation: after adjudicator promotions, the dashboard could still resolve the legacy baseline aggregate first, which produced the wrong council roster in single-run views.
+- Effect: dashboard mode selection now follows the current default variant for promoted modes instead of showing stale baseline aggregates.
+- Comparability: no scoring change. Dashboard interpretation is corrected to the intended default mode variant.
+
 ## 2026-04-02 — Threat Assessment Benchmarked and Adjudicator Decided
 
 - Area: mode system / methodology
