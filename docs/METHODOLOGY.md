@@ -100,17 +100,17 @@ We compare:
 | proprietary argumentation method | Mistral | Reliable flaw labeling, no sycophancy across 50+ runs |
 | Code Review | Gemini | Mistral over-confirms findings (2% dispute rate vs Gemini's 18%) |
 | Research Synthesis | Mistral | Gemini ceiling-compresses scores (all-5s on GPT, destroying discriminative power) |
-| Legal Analysis | Mistral (provisional) | Genuinely close — Gemini may be more accurate on contested questions |
+| Legal Analysis | Gemini | Mistral rubber-stamps contested questions as settled; Gemini correctly identifies genuine disputes |
 | Threat Assessment | Gemini | Mistral over-confirms threats (1% dispute rate vs Gemini's 13%) |
 
 ### The design heuristic
 
 A pattern emerged from the data:
 
-- **Findings-first modes** (code review, threat assessment) → **Gemini**. These modes need an adjudicator that challenges findings. An adjudicator that confirms everything produces inflated counts.
-- **Position/evidence modes** (proprietary argumentation method, research synthesis) → **Mistral**. These modes need calibrated scoring across a range. Gemini compresses scores to the ceiling in these modes, losing the ability to distinguish good from excellent.
+- **Correctness/evaluation modes** (code review, legal analysis, threat assessment) → **Gemini**. These modes need an adjudicator that evaluates claims of correctness, challenges findings, and identifies genuine disputes. An adjudicator that confirms everything is not performing evaluation.
+- **Reasoning-quality/position modes** (proprietary argumentation method, research synthesis) → **Mistral**. These modes need calibrated scoring across a range. Gemini compresses scores to the ceiling in these modes, losing the ability to distinguish good from excellent.
 
-This is not a hard rule. It is a defensible heuristic backed by controlled experiments. Every new mode should run its own adjudicator comparison before locking the default.
+This is not a hard rule. It is a defensible heuristic backed by controlled experiments across all five modes. Every new mode should run its own adjudicator comparison before locking the default.
 
 ---
 

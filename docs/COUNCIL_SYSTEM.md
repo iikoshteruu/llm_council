@@ -687,34 +687,34 @@ The ranking is stable with either adjudicator (GPT strongest in both), but Mistr
 | proprietary argumentation method | Mistral | Reliable flaw labeling, no sycophancy across 50+ runs |
 | Code Review | Gemini | Mistral over-confirms findings, inflates severity |
 | Research Synthesis | Mistral | Gemini over-scores evidence quality, ceiling compression |
-| Legal Analysis | Mistral (provisional) | Genuinely close — see below |
+| Legal Analysis | Gemini | Mistral rubber-stamps contested questions as settled; Gemini correctly identifies genuine disputes |
 | Threat Assessment | Gemini | Mistral over-confirms threats (82% confirmed, 1% disputed) |
 
 **There is no universally best adjudicator.** The correct adjudicator depends on the mode. A design heuristic has emerged from the benchmark data:
 
-- **Findings-first modes** (code review, threat assessment) → **Gemini** — these modes need skepticism. An adjudicator that rubber-stamps every finding produces inflated threat/bug counts.
-- **Position/evidence modes** (proprietary argumentation method, research synthesis) → **Mistral** — these modes need calibrated scoring across a range. Gemini ceiling-compresses scores in these modes.
-- **Legal analysis** → **Mistral (provisional)** — genuinely close, revisit after corpus expansion.
+- **Correctness/evaluation modes** (code review, legal analysis, threat assessment) → **Gemini** — these modes need an adjudicator that evaluates claims of correctness, challenges findings, and identifies genuine disputes. An adjudicator that confirms everything is not performing evaluation.
+- **Reasoning-quality/position modes** (proprietary argumentation method, research synthesis) → **Mistral** — these modes need calibrated scoring across a range. Gemini ceiling-compresses scores in these modes, losing discriminative power.
 
-#### Legal Analysis Adjudicator Comparison (Provisional)
+#### Legal Analysis Adjudicator Comparison (13 prompts, locked)
 
-Controlled A/B across 6 legal prompts (runs 80-85 vs 86-91).
+Controlled A/B across 13 legal prompts (runs 80-85 + 111-123 vs 86-91 + 124-136).
 
 | Metric | Mistral Adjudicator | Gemini Adjudicator |
 |--------|--------------------|--------------------|
-| GPT avg score | 37.5 | 41.5 |
-| Claude avg score | 32.2 | 37.2 |
-| GPT strongest | 5/6 | 4/6 |
-| Claude strongest | 0/6 | 2/6 |
-| Verdict: settled/high | 6/6 | 2/6 |
-| Verdict: contested | 0/6 | 2/6 |
+| GPT avg score | 37.6 | 41.6 |
+| Claude avg score | 31.6 | 33.0 |
+| GPT strongest | 13/19 | 14/19 |
+| Verdict: settled/high | 9/13 | 5/13 |
+| Verdict: contested | 1/13 | 3/13 |
 
-This is the first mode where the adjudicator decision is genuinely uncertain:
+**Gemini is the better adjudicator for legal analysis.** The expanded 13-prompt corpus confirmed:
 
-- **Mistral**: Consistent settled/high verdicts. Cleaner ranking separation. But may be rubber-stamping legal consensus — it classified FAA preemption and dormant Commerce Clause as settled when both are genuinely debated.
-- **Gemini**: More nuanced verdicts — flagged two questions as contested. Gives Claude credit on GDPR and dormant Commerce. Score spread is reasonable (not ceiling-compressed). But harder to benchmark against because verdicts vary more.
+- Mistral rubber-stamps 9/13 questions as settled/high, including FAA preemption, dormant Commerce Clause, and Fourteenth Amendment jurisdiction — all genuinely contested areas of law.
+- Gemini correctly identifies these as contested. The Fourteenth Amendment jurisdiction question (specifically designed to expose shallow reasoning) produced `settled/high` from Mistral and `contested/low` from Gemini. Gemini got this right.
+- Score calibration is acceptable — GPT axis range 4.26-5.00 with Gemini. Not ceiling-compressed like research synthesis.
+- Ranking is stable — GPT strongest with both adjudicators.
 
-**Current default: Mistral.** This is provisional. If corpus expansion confirms that Gemini consistently flags genuinely debated questions as contested while Mistral rubber-stamps them, Gemini becomes the better choice. Revisit after expanding the legal benchmark.
+**`legal_analysis` now defaults to Gemini adjudication.** `legal_analysis_mistral_adj` preserved as comparison baseline.
 
 ---
 

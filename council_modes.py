@@ -680,8 +680,9 @@ MODES = {
     "code_review_gemini_adj": CODE_REVIEW_GEMINI_ADJ,
     "research_synthesis": RESEARCH_SYNTHESIS_MODE,
     "research_synthesis_gemini_adj": RESEARCH_SYNTHESIS_GEMINI_ADJ,
-    "legal_analysis": LEGAL_ANALYSIS_MODE,
-    "legal_analysis_gemini_adj": LEGAL_ANALYSIS_GEMINI_ADJ,
+    "legal_analysis": LEGAL_ANALYSIS_GEMINI_ADJ,  # Gemini adjudicator default — correctly identifies contested questions
+    "legal_analysis_mistral_adj": LEGAL_ANALYSIS_MODE,  # Mistral baseline for comparison
+    "legal_analysis_gemini_adj": LEGAL_ANALYSIS_GEMINI_ADJ,  # explicit alias
     "threat_assessment": THREAT_ASSESSMENT_GEMINI_ADJ,  # Gemini adjudicator default for findings-first
     "threat_assessment_mistral_adj": THREAT_ASSESSMENT_MODE,  # Mistral baseline for comparison
     "threat_assessment_gemini_adj": THREAT_ASSESSMENT_GEMINI_ADJ,  # explicit alias

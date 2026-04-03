@@ -401,6 +401,14 @@ Use:
 - Effect: threat assessment can now be selected in the browser, uses the existing code-style paste path for custom system descriptions, and writes benchmark artifacts under its own mode namespace.
 - Comparability: no scoring change. This is plumbing required to expose the mode and run its first benchmark batch.
 
+## 2026-04-03 — Legal Analysis Adjudicator Locked To Gemini
+
+- Area: mode configuration / methodology
+- Change: promoted legal_analysis to Gemini adjudicator as default. Expanded corpus to 13 prompts (runs 111-136) and reran the controlled A/B comparison. Mistral-adjudicated variant preserved as legal_analysis_mistral_adj.
+- Motivation: the provisional Mistral default was the last open methodological question across five modes. The expanded 13-prompt corpus resolved it decisively.
+- Effect: Gemini correctly identified FAA preemption, dormant Commerce Clause, and Fourteenth Amendment jurisdiction as contested — Mistral rubber-stamped all three as settled/high. The adjudicator heuristic is refined: correctness/evaluation modes → Gemini, reasoning-quality/position modes → Mistral. All five modes now have locked adjudicator defaults.
+- Comparability: legal_analysis adjudicator changed from Mistral to Gemini. Runs before this change used Mistral; runs after use Gemini. Compare like-for-like only.
+
 ## 2026-04-03 — Corpus Hygiene Tightened For Generated Outputs And Duplicate Batches
 
 - Area: corpus/runtime hygiene
@@ -474,16 +482,18 @@ Two clusters: Claude excels under adversarial pressure (proprietary argumentatio
 
 There is no universally best adjudicator. Design heuristic:
 
-- **Findings-first modes → Gemini** (skepticism filters inflated findings)
-- **Position/evidence modes → Mistral** (calibrated scoring preserves range)
+- **Correctness/evaluation modes → Gemini** (evaluates claims, challenges findings, identifies disputes)
+- **Reasoning-quality/position modes → Mistral** (calibrated scoring preserves range)
 
 | Mode | Default Adjudicator | Reason |
 |------|---------------------|--------|
 | proprietary argumentation method | Mistral | Reliable flaw labeling, no sycophancy |
 | Code Review | Gemini | Mistral over-confirms, inflates severity |
 | Research Synthesis | Mistral | Gemini over-scores, ceiling compression |
-| Legal Analysis | Mistral (provisional) | Genuinely close |
+| Legal Analysis | Gemini | Mistral rubber-stamps contested questions as settled |
 | Threat Assessment | Gemini | Mistral over-confirms threats |
+
+All five modes now have locked adjudicator defaults based on controlled A/B experiments.
 
 ---
 
