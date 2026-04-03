@@ -64,7 +64,7 @@ Current runtime layout:
 
 Every adjudication call (phase 1, phase 2, axis scoring, verdict, flip detection, consensus, contradiction check) is logged to `logs/run_{id}_adjudicator.jsonl` inside the artifacts directory.
 
-Each log file starts with a header entry containing run_id, mode, domain, adjudicator model, and council roster. Each subsequent entry records:
+Each log file starts with a header entry containing run_id, mode, domain, adjudicator model, council roster, and `started_at`. Each log now ends with a footer entry containing `finished_at` and `duration_seconds`. Each adjudication call entry records:
 
 | Field | Description |
 |-------|-------------|
@@ -82,6 +82,7 @@ Use these logs to:
 - Track adjudicator latency by call type
 - Attribute API costs per call type
 - Compare adjudicator behavior across modes or model swaps
+- Recover approximate runtime spans for older logged runs that predate explicit runtime fields in the main result object
 
 ---
 

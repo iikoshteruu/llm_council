@@ -62,6 +62,9 @@ def build_grouped_export(result_obj):
         "code_hash": result_obj.get("code_hash"),
         "mode": result_obj.get("mode"),
         "domain": result_obj.get("domain"),
+        "started_at": result_obj.get("started_at"),
+        "finished_at": result_obj.get("finished_at"),
+        "duration_seconds": result_obj.get("duration_seconds"),
         "questions": [],
     }
     for q in result_obj.get("questions", []):
@@ -228,6 +231,14 @@ class AdjudicatorLogger:
         }
         entry.update(kwargs)
         self._write(entry)
+
+    def finalize(self, finished_at, duration_seconds):
+        self._write({
+            "entry_type": "run_footer",
+            "run_id": self.run_id,
+            "finished_at": finished_at,
+            "duration_seconds": duration_seconds,
+        })
 
     def _write(self, entry):
         try:
@@ -912,6 +923,8 @@ def sanitize_phase1_labels(ann, results, q_idx):
     return ann
 
 def main():
+    run_started_epoch = time.time()
+    run_started_at = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     run_id = get_next_run_id()
     parser = argparse.ArgumentParser()
     parser.add_argument("--file", help="JSONL of user turns; if omitted, read stdin single-turn")
@@ -1302,6 +1315,7 @@ def main():
         "code_hash": code_version(),
         "mode": mode_name,
         "domain": run_domain,
+        "started_at": run_started_at,
         "questions": questions_out,
     }
     # summary for quick consumption
@@ -1335,8 +1349,14 @@ def main():
             "stances": stances,
         })
     result_obj["summary"] = summary
+    run_finished_epoch = time.time()
+    run_finished_at = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    result_obj["finished_at"] = run_finished_at
+    result_obj["duration_seconds"] = round(run_finished_epoch - run_started_epoch, 3)
     if artifacts_dir:
         result_obj["artifacts"] = write_run_artifacts(result_obj, artifacts_dir)
+    if _adj_logger:
+        _adj_logger.finalize(run_finished_at, result_obj["duration_seconds"])
     progress("run_complete", run_id=run_id, questions=len(questions_out), artifacts=bool(result_obj.get("artifacts")))
     if quiet_json:
         print(json.dumps(result_obj, ensure_ascii=False, indent=2))

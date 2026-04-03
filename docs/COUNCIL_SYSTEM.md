@@ -307,7 +307,9 @@ Question-level objects with nested replies. Primary export format for downstream
 {
   "run_id": 44,
   "code_hash": "a3f7c2e91b04",
-  "timestamp": "2026-03-30T...",
+  "started_at": "2026-04-03T12:34:56+0900",
+  "finished_at": "2026-04-03T12:38:41+0900",
+  "duration_seconds": 225.137,
   "questions": [
     {
       "index": 1,
@@ -420,6 +422,8 @@ Scoring principles:
 ## Code Versioning
 
 `code_hash` is included in the grouped.json export metadata. Computed as SHA-256 of `council_basic.py`, truncated to 12 characters. Allows verification that code actually changed between runs — if two consecutive runs share a code_hash, the code was identical regardless of run_id.
+
+`started_at`, `finished_at`, and `duration_seconds` are also included in raw output and grouped export metadata. These are explicit end-to-end runtime fields for the full run, not just adjudicator-call latency.
 
 ## Benchmark Dataset Layout
 

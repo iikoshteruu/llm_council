@@ -417,6 +417,14 @@ Use:
 - Effect: README, runbook, system reference, history, model profiles, mode specs, and Claude ownership notes now refer to the proprietary mode generically instead of by name.
 - Comparability: documentation-only change. No pipeline logic, mode behavior, or benchmark interpretation changed.
 
+## 2026-04-03 — Explicit End-To-End Run Timing Added
+
+- Area: runtime/instrumentation
+- Change: added `started_at`, `finished_at`, and `duration_seconds` to the main result object and grouped export metadata. Adjudicator logs now end with a `run_footer` entry carrying the same finish time and duration.
+- Motivation: per-call adjudicator latency existed, but total run duration was not a first-class metric. That left benchmark results operationally incomplete.
+- Effect: each run now records explicit end-to-end timing for deployment planning, per-mode runtime comparison, and cost/feasibility analysis. Older logged runs can still be approximated from log spans, but new runs have exact runtime fields in the canonical outputs.
+- Comparability: no scoring or verdict change. Instrumentation-only addition.
+
 ## 2026-04-02 — Threat Assessment Benchmarked and Adjudicator Decided
 
 - Area: mode system / methodology
