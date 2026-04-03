@@ -545,19 +545,34 @@ function connectSSE(jobId) {
   if (sseSource) sseSource.close();
   try {
     sseSource = new EventSource(sseUrl(jobId));
+    // Map backend event names to stage keys
+    const EVENT_TO_STAGE = {
+      run_start: 'generation',
+      model_start: 'generation',
+      question_start: 'generation',
+      rebuttal_start: 'rebuttal',
+      refine_start: 'refine',
+      phase1_start: 'phase1',
+      phase2_start: 'phase2',
+      axis_scoring_start: 'scoring',
+      verdict_start: 'verdict',
+    };
+
     sseSource.addEventListener('progress', (e) => {
       try {
         const d = JSON.parse(e.data);
-        if (d.stage_index !== undefined) {
-          // Use mode-specific verbs if available, fall back to SSE data
+        const stageKey = EVENT_TO_STAGE[d.event];
+        if (stageKey) {
           const cm = activeCouncilMode();
           const sv = (window.STAGE_VERBS || {})[cm] || (window.STAGE_VERBS || {}).sistm_stress || {};
-          const keys = ['generation', 'rebuttal', 'refine', 'phase1', 'phase2', 'scoring', 'verdict'];
-          const verb = sv[keys[d.stage_index]];
-          if (verb) {
-            updateProgress(d.stage_index, `<strong>${verb[0]}</strong> — ${verb[1]}`);
-          } else {
-            updateProgress(d.stage_index, `<strong>${d.stage || ''}</strong> ${d.detail || ''}`);
+          const verb = sv[stageKey];
+          // Find the index of this stage in the active stages
+          const stageKeys = window._activeStageKeys || [];
+          const idx = stageKeys.indexOf(stageKey);
+          if (idx >= 0 && verb) {
+            updateProgress(idx, `<strong>${verb[0]}</strong> — ${verb[1]}`);
+          } else if (idx >= 0) {
+            updateProgress(idx, `<strong>${stageKey}</strong>`);
           }
         }
       } catch (err) {}
@@ -568,7 +583,8 @@ function connectSSE(jobId) {
         if (d.status === 'running') {
           const cm = activeCouncilMode();
           const sv = (window.STAGE_VERBS || {})[cm] || (window.STAGE_VERBS || {}).sistm_stress || {};
-          updateProgress(0, `<strong>${sv.generation[0]}</strong> — ${sv.generation[1]}`);
+          const gen = sv.generation;
+          if (gen) updateProgress(0, `<strong>${gen[0]}</strong> — ${gen[1]}`);
         }
       } catch (err) {}
     });
@@ -673,6 +689,7 @@ $('runBtn').onclick = async () => {
   if (body.rebuttal) stageKeys.push('rebuttal');
   if (body.refine) stageKeys.push('refine');
   stageKeys.push('phase1', 'phase2', 'scoring', 'verdict');
+  window._activeStageKeys = stageKeys;  // expose for SSE handler
   const stages = stageKeys.map(k => verbs[k][0]);
   showProgress(stages);
   updateProgress(0, `<strong>${verbs.generation[0]}</strong> — ${verbs.generation[1]}`);
