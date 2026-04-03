@@ -80,6 +80,13 @@ LEGAL_ANALYSIS_PRESETS = {
     "04_dormant_commerce": os.path.join(BASE_DIR, "prompts", "legal_analysis", "04_dormant_commerce.jsonl"),
     "05_fourth_amendment_geofence": os.path.join(BASE_DIR, "prompts", "legal_analysis", "05_fourth_amendment_geofence.jsonl"),
     "06_ai_copyright": os.path.join(BASE_DIR, "prompts", "legal_analysis", "06_ai_copyright.jsonl"),
+    "07_ftc_noncompete": os.path.join(BASE_DIR, "prompts", "legal_analysis", "07_ftc_noncompete.jsonl"),
+    "08_chevron_deference": os.path.join(BASE_DIR, "prompts", "legal_analysis", "08_chevron_deference.jsonl"),
+    "09_state_ai_regulation": os.path.join(BASE_DIR, "prompts", "legal_analysis", "09_state_ai_regulation.jsonl"),
+    "10_sovereign_immunity_cyber": os.path.join(BASE_DIR, "prompts", "legal_analysis", "10_sovereign_immunity_cyber.jsonl"),
+    "11_standing_climate": os.path.join(BASE_DIR, "prompts", "legal_analysis", "11_standing_climate.jsonl"),
+    "12_sec_crypto": os.path.join(BASE_DIR, "prompts", "legal_analysis", "12_sec_crypto.jsonl"),
+    "13_fourteenth_amendment_jurisdiction": os.path.join(BASE_DIR, "prompts", "legal_analysis", "13_fourteenth_amendment_jurisdiction.jsonl"),
 }
 THREAT_ASSESSMENT_PRESETS = {
     "01_api_gateway": os.path.join(BASE_DIR, "prompts", "threat_assessment", "01_api_gateway.txt"),

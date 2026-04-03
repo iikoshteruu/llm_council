@@ -433,6 +433,14 @@ Use:
 - Effect: each run now records explicit end-to-end timing for deployment planning, per-mode runtime comparison, and cost/feasibility analysis. Older logged runs can still be approximated from log spans, but new runs have exact runtime fields in the canonical outputs.
 - Comparability: no scoring or verdict change. Instrumentation-only addition.
 
+## 2026-04-03 — Legal Analysis Web Presets Expanded To Full 13-Prompt Corpus
+
+- Area: web/runtime contract
+- Change: expanded the legal-analysis preset maps in `webapp.py` and `static/index.html` from the original 6 prompts to the full 13-prompt corpus already present under `prompts/legal_analysis/`.
+- Motivation: the corpus had been expanded for adjudicator evaluation, but the frontend dropdown still exposed only the original subset.
+- Effect: the web UI now matches the actual benchmark corpus and can launch all 13 legal-analysis prompts without manual file selection.
+- Comparability: no scoring or adjudicator change. UI/runtime preset exposure only.
+
 ## 2026-04-02 — Threat Assessment Benchmarked and Adjudicator Decided
 
 - Area: mode system / methodology
