@@ -473,6 +473,14 @@ Use:
 - Effect: fewer wasted adjudicator calls, no latent contradiction tuple bug in the main run loop, more robust JSON recovery, safer concurrent run IDs, and complete variant routing across the web layer.
 - Comparability: no scoring rubric change. This is runtime correctness and routing hardening only.
 
+## 2026-04-04 — Shared-File Prompt Binding Completed
+
+- Area: shared pipeline / mode plumbing
+- Change: updated `council_verdict()` and `score_axis()` in `council_basic.py` to read the prompt text from `mode_cfg` first, with the old module globals only as fallback. Wired the `mode_cfg` call path into `score_axis()` from the main loop.
+- Motivation: the shared helpers were still implicitly depending on globals set by `main()`. That worked in the subprocess path but made the helpers unsafe to call in isolation and left mode-specific prompt binding incomplete.
+- Effect: verdict synthesis and axis scoring now bind to the active mode config directly at the helper level instead of depending on prior global mutation.
+- Comparability: no scoring change intended. This closes a latent prompt-binding bug in the shared runtime path.
+
 ## 2026-04-02 — Threat Assessment Benchmarked and Adjudicator Decided
 
 - Area: mode system / methodology

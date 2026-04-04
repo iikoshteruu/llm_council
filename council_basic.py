@@ -447,8 +447,9 @@ def council_verdict(question_text, q_replies, consensus_text, mode_cfg=None, pha
         *reply_blocks,
     ])
 
+    verdict_prompt = (mode_cfg or {}).get("verdict_prompt") or local_system_verdict
     hist = [
-        {"role": "system", "content": local_system_verdict},
+        {"role": "system", "content": verdict_prompt},
         {"role": "user", "content": user_prompt},
     ]
     raw = adjudicate(hist, call_type="verdict", verdict_type=verdict_type, confidence=confidence)
@@ -740,7 +741,7 @@ def call_local(history):
         return j["choices"][0]["message"]["content"]
     return last_err or "HTTP 429 repeated"
 
-def score_axis(question_text, reply_obj, phase1_ann, phase2_ann, axis_name, axis_desc):
+def score_axis(question_text, reply_obj, phase1_ann, phase2_ann, axis_name, axis_desc, mode_cfg=None):
     # reply_obj: {"model","text","compliant":bool,"phase1":...}
     compliance = "NONCOMPLIANT" if not reply_obj.get("compliant", True) else "COMPLIANT"
     base_user = {
@@ -781,7 +782,8 @@ def score_axis(question_text, reply_obj, phase1_ann, phase2_ann, axis_name, axis
         base_user["verification_basis"] = verification_basis
 
     # build messages
-    sys_msg = local_system_axis.replace("AXIS", axis_name).replace("AXIS_DESC", axis_desc)
+    axis_prompt = (mode_cfg or {}).get("axis_prompt") or local_system_axis
+    sys_msg = axis_prompt.replace("AXIS", axis_name).replace("AXIS_DESC", axis_desc)
     user_msg = json.dumps(base_user, ensure_ascii=False)
     hist = [{"role": "system", "content": sys_msg}, {"role": "user", "content": user_msg}]
     raw = adjudicate(hist, call_type="axis_scoring", axis_name=axis_name, model_evaluated=reply_obj.get("model"))
@@ -1166,7 +1168,7 @@ def main():
             for r in q_replies:
                 r["axis_scores"] = {}
                 for axis_name, axis_desc in AXES:
-                    score_obj = score_axis(question_text, r, ann, out_parsed, axis_name, axis_desc)
+                    score_obj = score_axis(question_text, r, ann, out_parsed, axis_name, axis_desc, mode_cfg=mode_cfg)
                     r["axis_scores"][axis_name] = score_obj
                 compute_weighted_score(r, axis_weights=mode_cfg.get("axis_weights"), compliance_penalty=mode_cfg.get("compliance_penalty", 0.6))
             # recompute consensus/strongest after revisions (use final weighted scores)
