@@ -465,6 +465,14 @@ Use:
 - Effect: result rendering and HTML reports now treat prompt/reply/verdict text as data instead of executable markup, and long-lived web sessions no longer retain completed async jobs indefinitely.
 - Comparability: no scoring change. This is security/runtime hardening only.
 
+## 2026-04-04 — Pipeline Cleanup and Variant Routing Hardening
+
+- Area: runtime plumbing / web routing
+- Change: removed the duplicate contradiction and length-violation cleanup pass in `council_basic.py` so phase-1 sanitation runs only once. Hardened adjudicator JSON parsing to use decoder-based fragment extraction instead of the greedy regex fallback. Made `run_id` allocation file-lock safe. Expanded `webapp.py` preset and dashboard alias routing to cover explicit comparison variants for research synthesis, legal analysis, and threat assessment.
+- Motivation: the duplicate cleanup block was both redundant and wrong (tuple truthiness on `contradiction_check()`), parse recovery was fragile on noisy adjudicator output, `run_id.txt` could race under concurrent runs, and some explicit mode variants were falling through to the wrong preset/dashboard routing.
+- Effect: fewer wasted adjudicator calls, no latent contradiction tuple bug in the main run loop, more robust JSON recovery, safer concurrent run IDs, and complete variant routing across the web layer.
+- Comparability: no scoring rubric change. This is runtime correctness and routing hardening only.
+
 ## 2026-04-02 — Threat Assessment Benchmarked and Adjudicator Decided
 
 - Area: mode system / methodology

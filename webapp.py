@@ -137,13 +137,13 @@ def resolve_artifact_path(relpath: str):
 
 
 def get_prompt_presets(council_mode: str):
-    if council_mode == "code_review":
+    if council_mode in {"code_review", "code_review_gemini_adj", "code_review_mistral_adj"}:
         return CODE_REVIEW_PRESETS
-    if council_mode == "research_synthesis":
+    if council_mode in {"research_synthesis", "research_synthesis_gemini_adj"}:
         return RESEARCH_SYNTHESIS_PRESETS
-    if council_mode in {"legal_analysis", "legal_analysis_gemini_adj"}:
+    if council_mode in {"legal_analysis", "legal_analysis_gemini_adj", "legal_analysis_mistral_adj"}:
         return LEGAL_ANALYSIS_PRESETS
-    if council_mode in {"threat_assessment", "threat_assessment_gemini_adj"}:
+    if council_mode in {"threat_assessment", "threat_assessment_gemini_adj", "threat_assessment_mistral_adj"}:
         return THREAT_ASSESSMENT_PRESETS
     return PROMPT_PRESETS
 
@@ -157,8 +157,10 @@ def canonical_mode_dir(council_mode: str):
         "research_synthesis_gemini_adj": "research_synthesis",
         "legal_analysis": "legal_analysis",
         "legal_analysis_gemini_adj": "legal_analysis",
+        "legal_analysis_mistral_adj": "legal_analysis",
         "threat_assessment": "threat_assessment",
         "threat_assessment_gemini_adj": "threat_assessment",
+        "threat_assessment_mistral_adj": "threat_assessment",
         "sistm_stress": "sistm_stress",
     }
     return aliases.get(council_mode or "", council_mode or "sistm_stress")
@@ -256,11 +258,14 @@ def dashboard_mode_candidates(requested_mode: str):
         "code_review": ["code_review_gemini_adj", "code_review", "code_review_mistral_adj"],
         "code_review_gemini_adj": ["code_review_gemini_adj", "code_review"],
         "code_review_mistral_adj": ["code_review_mistral_adj", "code_review"],
+        "research_synthesis": ["research_synthesis", "research_synthesis_gemini_adj"],
+        "research_synthesis_gemini_adj": ["research_synthesis_gemini_adj", "research_synthesis"],
         "legal_analysis": ["legal_analysis_gemini_adj", "legal_analysis"],
         "legal_analysis_gemini_adj": ["legal_analysis_gemini_adj", "legal_analysis"],
         "legal_analysis_mistral_adj": ["legal_analysis_mistral_adj", "legal_analysis"],
         "threat_assessment": ["threat_assessment_gemini_adj", "threat_assessment"],
         "threat_assessment_gemini_adj": ["threat_assessment_gemini_adj", "threat_assessment"],
+        "threat_assessment_mistral_adj": ["threat_assessment_mistral_adj", "threat_assessment"],
         "sistm_stress": ["sistm_stress"],
     }
     return aliases.get(requested_mode, [requested_mode])

@@ -7,6 +7,7 @@ Models: OpenAI gpt-4.1, Anthropic (configurable), Gemini (configurable), optiona
 """
 import os, sys, json, requests, time, re, hashlib
 import argparse
+import fcntl
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -168,22 +169,21 @@ def write_run_artifacts(result_obj, artifacts_dir):
 
 def get_next_run_id():
     os.makedirs(os.path.dirname(RUN_ID_FILE), exist_ok=True)
-    last = None
-    if os.path.exists(RUN_ID_FILE):
+    with open(RUN_ID_FILE, "a+", encoding="utf-8") as f:
         try:
-            with open(RUN_ID_FILE, "r", encoding="utf-8") as f:
-                last = int(f.read().strip())
-        except Exception:
-            last = None
-    if last is None:
-        last = 0
-    next_id = last + 1
-    try:
-        with open(RUN_ID_FILE, "w", encoding="utf-8") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            f.seek(0)
+            raw = f.read().strip()
+            last = int(raw) if raw else 0
+            next_id = last + 1
+            f.seek(0)
+            f.truncate()
             f.write(str(next_id))
-    except Exception:
-        pass
-    return next_id
+            f.flush()
+            os.fsync(f.fileno())
+            return next_id
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 # Axis definitions and order
 AXES = [
@@ -726,20 +726,20 @@ def parse_adjudicator_json(raw: str):
         return json.loads(raw)
     except Exception:
         pass
-    # try single JSON object substring
-    m = re.search(r"\{.*\}", raw, re.DOTALL)
-    if m:
+
+    decoder = json.JSONDecoder()
+    fragments = []
+    for idx, ch in enumerate(raw):
+        if ch not in "[{":
+            continue
         try:
-            return json.loads(m.group(0))
+            obj, end = decoder.raw_decode(raw[idx:])
+            if idx + end <= len(raw):
+                fragments.append(obj)
         except Exception:
-            pass
-    # try multiple top-level objects -> array
-    objs = re.findall(r"\{[^{}]*\}", raw, re.DOTALL)
-    if objs:
-        try:
-            return json.loads("[" + ",".join(objs) + "]")
-        except Exception:
-            pass
+            continue
+    if fragments:
+        return fragments[0] if len(fragments) == 1 else fragments
     return {"error": "parse_failed", "raw": raw}
 
 def compute_weighted_score(reply, axis_weights=None, compliance_penalty=0.6):
@@ -1214,23 +1214,6 @@ def main():
                 if q_idx < len(outs) and isinstance(outs[q_idx], dict) and "compliant" in outs[q_idx]:
                     phase1_list = ann.get("replies", []) if isinstance(ann, dict) else ann
                     phase1_filtered = phase1_list
-                    if isinstance(phase1_list, list):
-                        phase1_filtered = []
-                        for entry in phase1_list:
-                            if entry.get("model") == name and entry.get("flaw_label") == "contradiction":
-                                # verify with contradiction checker; clear if false
-                                is_contra = contradiction_check(outs[q_idx]["text"])
-                                if not is_contra:
-                                    entry = entry.copy()
-                                    entry["flaw_label"] = None
-                                    entry["flaw_reason"] = None
-                            # If the run-level compliance check already says the reply is one sentence,
-                            # do not let the adjudicator reintroduce length_violation.
-                            if entry.get("model") == name and outs[q_idx]["compliant"] and entry.get("flaw_label") == "length_violation":
-                                entry = entry.copy()
-                                entry["flaw_label"] = None
-                                entry["flaw_reason"] = None
-                            phase1_filtered.append(entry)
 
                     # filter phase1 annotations to this model only
                     relevant_p1 = [r for r in phase1_filtered if r.get("model") == name]
