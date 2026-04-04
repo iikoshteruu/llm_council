@@ -60,11 +60,13 @@ Every adjudication call is logged with timestamp, call type, raw response, parse
 
 The pipeline engine is mode-agnostic. Each mode defines its own axes, scoring weights, adjudication prompts, verdict classifier, and input format. Modes are not prompt skins -- they are distinct evaluation rubrics.
 
-| Mode | Purpose | Axes | Verdict Types | Input |
-|------|---------|------|---------------|-------|
-| Proprietary argumentation method | Adversarial stress testing via a proprietary argumentation method | 6 (structural, empirical, asymmetry, rhetorical, frame, institutional) | unanimous / majority / contested / unstable | JSONL prompts |
-| `code_review` | Multi-model code review with findings-first verdict | 6 (bug ID, severity, evidence, fix quality, regression, scope) | confirmed / disputed / clean / inconclusive | Code paste |
-| `code_review_gemini_adj` | Code review with Gemini as adjudicator (experiment) | Same as code_review | Same as code_review | Code paste |
+| Mode | Purpose | Axes | Verdict Types | Default Adjudicator | Input |
+|------|---------|------|---------------|---------------------|-------|
+| Proprietary argumentation method | Adversarial stress testing via a proprietary argumentation method | 6 (structural, empirical, asymmetry, rhetorical, frame, institutional) | unanimous / majority / contested / unstable | Mistral | JSONL prompts |
+| `code_review` | Multi-model code review with findings-first verdict | 6 (bug ID, severity, evidence, fix quality, regression, scope) | confirmed / disputed / clean / inconclusive | Gemini | Code paste |
+| `research_synthesis` | Evidence evaluation with uncertainty-aware synthesis | 6 (evidence, causation, uncertainty, citations, counterargument, synthesis) | supported / contested / insufficient_evidence / inconclusive | Mistral | Question |
+| `legal_analysis` | Statutory/case law interpretation and application | 6 (authority, application, distinction, counterargument, precision, scope) | settled / contested / unsettled / inconclusive | Gemini | Question |
+| `threat_assessment` | Security assessment with exploitability analysis | 6 (threat ID, exploitability, impact, mitigation, attack chain, scope) | threats_confirmed / disputed / low_risk / inconclusive | Gemini | System description |
 
 ### Mode architecture
 
@@ -330,10 +332,10 @@ Aggregation is mode-aware -- proprietary argumentation method and code review ru
 
 All artifacts are written server-side when `--artifacts-dir` is set:
 
-- `run_{id}_raw.json` -- full pipeline output (includes mode field)
-- `grouped_run_{id}.json` -- structured, question-level export with verdict
-- `summary_run_{id}.json` -- lightweight stance/verdict overview
-- `council_replies_run_{id}.ndjson` -- flat per-reply rows
+- `{mode}_run_{id}_raw.json` -- full pipeline output (includes mode field)
+- `{mode}_run_{id}_grouped.json` -- structured, question-level export with verdict
+- `{mode}_run_{id}_summary.json` -- lightweight stance/verdict overview
+- `{mode}_run_{id}_replies.ndjson` -- flat per-reply rows
 
 ## Configuration
 
@@ -369,37 +371,11 @@ All system prompts are overridable via environment variables. Mode-specific prom
 
 ## Future modes
 
-Planned modes in priority order. Each requires its own rubric — modes are not prompt skins.
-
-### Research synthesis (next)
-
-"Does X cause Y?" with competing evidence. The council evaluates evidence quality and uncertainty rather than argument structure. This is the first mode where acknowledging uncertainty is rewarded, not penalized.
-
-| Axis | What it measures |
-|------|-----------------|
-| evidence_quality | Cites specific studies, data, or mechanisms vs vague claims |
-| causal_inference | Distinguishes correlation from causation, identifies confounders |
-| uncertainty_handling | Acknowledges limits, quantifies confidence, avoids false certainty |
-| citation_specificity | Names sources, dates, sample sizes vs "studies show" |
-| counterargument_acknowledgment | Addresses the strongest opposing evidence directly |
-
-Verdict types: `supported` / `contested` / `insufficient_evidence`
-
-Why next: strong rubric boundary, clear user value, tests a new evaluation dimension (uncertainty-aware truth-seeking). The pipeline has only evaluated argument quality (proprietary argumentation method) and technical correctness (code review) — research synthesis adds evidence evaluation.
-
-### General council (after research synthesis)
+### General council
 
 Open-ended questions where you want the best answer from adversarial deliberation. No forced binary, no sentence constraint. The "use it like ChatGPT but with three models arguing" mode.
 
-Held until research synthesis is proven because: without a tight rubric, this mode risks becoming generic assistant scoring — exactly what every other LLM council already does. The rubric definition for "what makes a good general answer" needs to be sharp enough to produce real signal, not just "nice-looking outputs."
-
-### Legal analysis (future)
-
-Contract clause interpretation, regulatory compliance, policy analysis. Scoped initially to policy/regulatory interpretation, not broad legal reasoning — jurisdiction drift makes evaluation unreliable without tight scoping.
-
-### Threat assessment (future)
-
-Given a system description, identify attack vectors. Reuses the findings-first pattern from code review with severity based on exploitability and impact. Tests whether the code review architecture generalizes to non-code technical analysis.
+Held because: without a tight rubric, this mode risks becoming generic assistant scoring — exactly what every other LLM council already does. The rubric definition for "what makes a good general answer" needs to be sharp enough to produce real signal, not just "nice-looking outputs."
 
 ## Documentation
 

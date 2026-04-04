@@ -388,92 +388,6 @@ def majority_consensus(question_text, answers):
     return None
 
 
-def classify_verdict(q_replies, phase2=None):
-    """Deterministically classify verdict type and confidence from deliberation data.
-
-    Returns (verdict_type, confidence, basis_method) where:
-      verdict_type: unanimous | majority | contested | unstable
-      confidence: high | moderate | low
-      basis_method: describes what evidence supports the classification
-    """
-    if not q_replies:
-        return "unstable", "low", "no_replies"
-
-    sorted_replies = sorted(q_replies, key=lambda x: x.get("weighted_score", 0), reverse=True)
-    scores = [r.get("weighted_score", 0) for r in sorted_replies]
-    top_score = scores[0]
-    second_score = scores[1] if len(scores) > 1 else 0
-    score_gap = top_score - second_score
-
-    # Extract final positions (trimmed text) for agreement detection
-    positions = [r.get("text", "").strip().lower() for r in sorted_replies]
-
-    # Check for flips — indicator of instability
-    flips = []
-    uncited_flips = 0
-    for r in sorted_replies:
-        flip_obj = r.get("flip")
-        if isinstance(flip_obj, dict) and flip_obj.get("flip"):
-            flips.append(r["model"])
-            if flip_obj.get("flip_reason") == "uncited":
-                uncited_flips += 1
-
-    # Check for flaws on the strongest reply
-    strongest_flaws = []
-    for p1 in (sorted_replies[0].get("phase1", []) if isinstance(sorted_replies[0].get("phase1"), list) else []):
-        if isinstance(p1, dict) and p1.get("flaw_label"):
-            strongest_flaws.append(p1["flaw_label"])
-
-    n_models = len(sorted_replies)
-
-    # --- Verdict type classification ---
-
-    # Unanimous: all models agree on the same side AND no flips
-    # Simple heuristic: if all positions share the same leading verb/noun phrase
-    # More robust: check if score spread is tight and no flips
-    all_scores_close = (max(scores) - min(scores)) < 4.0 if scores else False
-
-    if not flips and all_scores_close and n_models >= 2:
-        verdict_type = "unanimous"
-        basis_method = "all_models_agree_no_flips"
-    elif score_gap >= 3.0 and uncited_flips == 0:
-        verdict_type = "majority"
-        basis_method = "weighted_majority"
-    elif uncited_flips >= 2 or (len(flips) == n_models):
-        verdict_type = "unstable"
-        basis_method = "high_flip_instability"
-    elif score_gap < 2.0 and len(flips) > 0:
-        verdict_type = "contested"
-        basis_method = "narrow_margin_with_flips"
-    elif score_gap >= 2.0:
-        verdict_type = "majority"
-        basis_method = "weighted_majority"
-    else:
-        verdict_type = "contested"
-        basis_method = "narrow_margin"
-
-    # --- Confidence ---
-
-    if verdict_type == "unanimous":
-        confidence = "high"
-    elif verdict_type == "unstable":
-        confidence = "low"
-    elif verdict_type == "majority" and score_gap >= 5.0 and not strongest_flaws:
-        confidence = "high"
-    elif verdict_type == "majority":
-        confidence = "moderate"
-    elif verdict_type == "contested" and not strongest_flaws:
-        confidence = "moderate"
-    else:
-        confidence = "low"
-
-    # Downgrade confidence if strongest reply has flaws
-    if strongest_flaws and confidence == "high":
-        confidence = "moderate"
-
-    return verdict_type, confidence, basis_method
-
-
 def council_verdict(question_text, q_replies, consensus_text, mode_cfg=None, phase2=None):
     """Synthesize the council's final answer from deliberation results.
 
@@ -483,7 +397,9 @@ def council_verdict(question_text, q_replies, consensus_text, mode_cfg=None, pha
     sorted_replies = sorted(q_replies, key=lambda x: x.get("weighted_score", 0), reverse=True)
     strongest = sorted_replies[0]
 
-    classifier = (mode_cfg or {}).get("verdict_classifier", classify_verdict)
+    classifier = (mode_cfg or {}).get("verdict_classifier")
+    if not classifier:
+        from council_modes import sistm_verdict_classifier as classifier
     verdict_type, confidence, basis_method = classifier(q_replies, phase2=phase2)
 
     # If unstable/inconclusive or contested with low confidence, don't force a verdict
@@ -837,12 +753,26 @@ def score_axis(question_text, reply_obj, phase1_ann, phase2_ann, axis_name, axis
         "phase2_strongest": None,
         "phase2_weakest": None,
     }
-    # pull flaw label from phase1_ann if available
+    # pull phase1 label from annotations — mode-specific key fallback
     if isinstance(phase1_ann, dict) and "replies" in phase1_ann:
         for r in phase1_ann["replies"]:
             if r.get("model") == reply_obj.get("model"):
-                base_user["flaw_label"] = r.get("flaw_label")
-                base_user["flaw_reason"] = r.get("flaw_reason")
+                # SISTM uses flaw_label, research_synthesis uses evidence_label,
+                # legal_analysis uses legal_label, code_review/threat use findings list
+                label = (r.get("flaw_label")
+                         or r.get("evidence_label")
+                         or r.get("legal_label"))
+                reason = (r.get("flaw_reason")
+                          or r.get("evidence_reason")
+                          or r.get("legal_reason"))
+                # findings-based modes (code_review, threat_assessment): summarize
+                if not label and isinstance(r.get("findings"), list) and r["findings"]:
+                    labels = [f.get("label") for f in r["findings"] if f.get("label")]
+                    label = ", ".join(labels) if labels else None
+                    reasons = [f.get("reason") for f in r["findings"] if f.get("reason")]
+                    reason = "; ".join(reasons) if reasons else None
+                base_user["flaw_label"] = label
+                base_user["flaw_reason"] = reason
                 break
     if isinstance(phase2_ann, dict):
         base_user["phase2_strongest"] = phase2_ann.get("strongest")
